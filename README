@@ -1,0 +1,9 @@
+PrivText is a secure textmessaging library 
+Authored by Gary Belvin and Phil Zimmermann
+
+Folders
+	lib - the library source code
+	doc - refrence documentation
+	Android - A android implementation
+	AndroidTests - Unit tests for android
+	J2ME - a basic phone implementation
