@@ -20,12 +20,17 @@
  * SOFTWARE.
  */
 
-package edu.jhu.privtext.encoding;
+package edu.jhu.privtext.util.encoders;
 
+import java.nio.charset.CharacterCodingException;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Vector;
 
+/** Converts GSM0338 to and from Unicode strings
+ * Character table taken from http://unicode.org/Public/MAPPINGS/ETSI/GSM0338.TXT
+ * @author Gary Belvin
+ */
 public class GSM0338 {
 
     /** GSM-7 to Unicode */
@@ -113,7 +118,7 @@ public class GSM0338 {
         GSM7.put(new Character('\u0039'), new Byte((byte) 0x39));  //	DIGIT NINE
         GSM7.put(new Character('\u003A'), new Byte((byte) 0x3A));  //	COLON
         GSM7.put(new Character('\u003B'), new Byte((byte) 0x3B));  //	SEMICOLON
-        GSM7.put(new Charac\u002E'), new Byte((byte) 0x2E));  //;  //	LESS-THAN SIGN
+        GSM7.put(new Character('\u003C'), new Byte((byte) 0x3C));  //	LESS-THAN SIGN
         GSM7.put(new Character('\u003D'), new Byte((byte) 0x3D));  //	EQUALS SIGN
         GSM7.put(new Character('\u003E'), new Byte((byte) 0x3E));  //	GREATER-THAN SIGN
         GSM7.put(new Character('\u003F'), new Byte((byte) 0x3F));  //	QUESTION MARK
@@ -156,8 +161,8 @@ public class GSM0338 {
         //GSM7.put(new Character('\u03A7'), new Byte((byte)0x58));  //	GREEK CAPITAL LETTER CHI
         GSM7.put(new Character('\u0059'), new Byte((byte) 0x59));  //	LATIN CAPITAL LETTER Y
         //GSM7.put(new Character('\u03A5'), new Byte((byte)0x59));  //	GREEK CAPITAL LETTER UPSILON
-        GSM7.put(new Character('\u005A'), new Byte((byte) 0x5A));  //	LAL LETTER Q
-        GSM7.put(new Character('\u0052'), new Byte((, new Byte((byte)0x5A));  //	GREEK CAPITAL LETTER ZETA
+        GSM7.put(new Character('\u005A'), new Byte((byte) 0x5A));  //	LATIN CAPITAL LETTER Z
+        //GSM7.put(new Character('\u0396'), new Byte((byte)0x5A));  //	GREEK CAPITAL LETTER ZETA
         GSM7.put(new Character('\u00C4'), new Byte((byte) 0x5B));  //	LATIN CAPITAL LETTER A WITH DIAERESIS
         GSM7.put(new Character('\u00D6'), new Byte((byte) 0x5C));  //	LATIN CAPITAL LETTER O WITH DIAERESIS
         GSM7.put(new Character('\u00D1'), new Byte((byte) 0x5D));  //	LATIN CAPITAL LETTER N WITH TILDE
@@ -208,13 +213,14 @@ public class GSM0338 {
         e = GSM7_ext.keys();
         while (e.hasMoreElements()) {
             Character C = (Character) e.nextElement();
-     
-        GSM7.put(new Character('\u0079'), new Byte((byte) 0x79));  //	LATIN SMALL LETTER Y
-        GSM7.put(new Character('\u007A'), nble[b] = c;
+            char c = C.charValue();
+            Byte B = (Byte) GSM7_ext.get(C);
+            byte b = B.byteValue();
+            extlookuptable[b] = c;
         }
     }
 
-    public static byte[] encode(String theMessage) throws Exception {
+    public static byte[] encode(String theMessage) throws CharacterCodingException {
 
         char[] chars = theMessage.toCharArray();
         Vector bb = new Vector();
@@ -227,7 +233,7 @@ public class GSM0338 {
                 bb.addElement(new Byte(ESC_TO_EXTENTION_TABLE));
                 bb.addElement(GSM7_ext.get(C));
             } else {
-                throw new Exception("GSM0338 Could not encode: " + c);
+                throw new CharacterCodingException();
             }
 
         }
@@ -300,10 +306,10 @@ public class GSM0338 {
         int p = -1;		//Pointer into byte buffer
 
         //Since we consider pairs, we start at -1 and go till n-1.
-        //n can only be accessed if it is a           byte high = (byte) ((cnt & high_mask) << (8 - j));
+        //n can only be accessed if it is a full nibble ie. j==7
+        while ((p + 1) < buffer.length || ((p + 1) == buffer.length && j == 7)) {
 
-            if (k > 0) {
-                out[k - 1] = (byte) (out[k - 1] | hip for until the first pause
+            //j is only related to p for until the first pause
             //j = (p+1) % 8;		 					//	 j = 0		j = 1		  j = 6		  j = 7
             int x0_mask = (0xff00 >> j) & 0x00ff;	//0b00000000, 0b10000000 .. 0b11111100, 0b11111110
             int x1_mask = (0x7f >> j);			//0b01111111, 0b00111111 .. 0b00000001, 0b00000000

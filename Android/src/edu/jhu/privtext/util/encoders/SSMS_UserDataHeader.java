@@ -19,25 +19,52 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+package edu.jhu.privtext.util.encoders;
 
-package edu.jhu.privtext.encoding;
-
-public class TPDCS {
-	public static final TPDCS Default_ = new TPDCS("UTF-8");
-	public static final TPDCS SevenBit = new TPDCS("SCGSM");
-	// SevenBit("US-ASCII"),
-	// "SCGSM" (a.k.a. "GSM-default-alphabet", "GSM_0338", "GSM_DEFAULT",
-	// "GSM7", "GSM-7BIT")
-	public static final TPDCS EightBit = new TPDCS("ISO-8859-1");
-	public static final TPDCS UCS2 = new TPDCS("UTF-16BE");
-
-	private String myCharsetName;
-
-	private TPDCS(String theCharset) {
-		myCharsetName = theCharset;
+/**
+ * Parses the User Data Header to extract the source and destination
+ * phone number and port numbers. Expects 16 bit application port addressing
+ * 
+ *    7 6 5 4 3 2 1 0 
+ *    +-+-+-+-+-+-+-+
+ * 0  |     UDHL    |
+ * 1  | IEI (0x05)  |  
+ * 2  | len (0x02)  |
+ * 3  | destination |
+ * 4  |  port num   |
+ * 5  | IEI (0x05)  |
+ * 6  | len (0x02)  |
+ * 7  |   source    |
+ * 8  |  port num   |
+ *    +-+-+-+-+-+-+-+
+ *    |  8 bit data |
+ *    +-+-+-+-+-+-+-+
+ * @author Gary Belvin
+ *
+ */
+public class SSMS_UserDataHeader {
+	private byte myUHDL;
+	private byte myIEI1;
+	private byte mylen1;
+	private short myDstPort;
+	private byte myIEI2;
+	private byte mylen2;
+	private short mySrcPort;
+	
+	public SSMS_UserDataHeader(final byte[] thePDU) {
+		
+	}
+	
+	private void parse(final byte[] thePDU) {
+		
+	}
+	
+	public short getSrcPort(){
+		return mySrcPort;
+	}
+	
+	public short getDstPort() {
+		return myDstPort;
 	}
 
-	public String getCharsetName() {
-		return myCharsetName;
-	}
 }
