@@ -65,7 +65,7 @@ public class UserDataPart {
    * are being attacked, this value can be increased to 32 or 48 bits.
    */
   private static final int DefaultMAC_size = (24 / 8);
-  private final int myMacSize;
+  private final int my_macbytes;
   /** The maximum size of the encrypted data payload. */
   private final byte MAXEncPayload;
 
@@ -89,7 +89,7 @@ public class UserDataPart {
     assert the_macsize >= 2 && the_macsize <= (MAX_PDU_SIZE - SEQ_SIZE);
     MAXEncPayload = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE + the_macsize));
 
-    myMacSize = the_macsize;
+    my_macbytes = the_macsize;
     my_sequenceNum = 0;
     myEncryptedPayload = new byte[MAXEncPayload];
     myMac = new byte[the_macsize];
@@ -104,7 +104,7 @@ public class UserDataPart {
   public UserDataPart(final byte[] the_userdata, final int the_macsize) {
     assert the_macsize >= 2 && the_macsize <= (MAX_PDU_SIZE - SEQ_SIZE);
 
-    myMacSize = the_macsize;
+    my_macbytes = the_macsize;
     MAXEncPayload = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE + the_macsize));
     
     parse(the_userdata);
@@ -135,7 +135,7 @@ public class UserDataPart {
     assert the_macsize >= 2 && the_macsize <= (MAX_PDU_SIZE - SEQ_SIZE);
     MAXEncPayload = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE + the_macsize));
 
-    myMacSize = the_macsize;
+    my_macbytes = the_macsize;
     setSequenceNumber(the_seq);
     setEncryptedPayload(the_ciphertext);
     setMac(the_mac);
@@ -147,17 +147,17 @@ public class UserDataPart {
     my_sequenceNum = 0;
     final int ctextlen = the_payload.length - UDH_SIZE - SEQ_SIZE;
     myEncryptedPayload = new byte[ctextlen];
-    myMac = new byte[myMacSize];
+    myMac = new byte[my_macbytes];
 
     System.arraycopy(the_payload, 0, myUserDataHeader, 0, UDH_SIZE);
     System.arraycopy(the_payload, UDH_SIZE, my_sequenceNum, 0, SEQ_SIZE);
     System.arraycopy(the_payload, UDH_SIZE + SEQ_SIZE, myEncryptedPayload, 0, ctextlen);
-    System.arraycopy(the_payload, UDH_SIZE + SEQ_SIZE + ctextlen, myMac, 0, myMacSize);
+    System.arraycopy(the_payload, UDH_SIZE + SEQ_SIZE + ctextlen, myMac, 0, my_macbytes);
   }
 
   /** @return everything past the User Data Header */
   public byte[] getUserData() {
-    final int len = SEQ_SIZE + MAXEncPayload + myMacSize;
+    final int len = SEQ_SIZE + MAXEncPayload + my_macbytes;
     final ByteBuffer ud = ByteBuffer.allocate(len);
     ud.put(my_sequenceNum);
     ud.put(myEncryptedPayload);
@@ -196,16 +196,33 @@ public class UserDataPart {
   }
 
   public void setEncryptedPayload(final byte[] theEncryptedPayload) {
-    assert (theEncryptedPayload.length + UDH_SIZE + SEQ_SIZE + myMacSize) <= MAX_PDU_SIZE;
+    assert (theEncryptedPayload.length + UDH_SIZE + SEQ_SIZE + my_macbytes) <= MAX_PDU_SIZE;
     this.myEncryptedPayload = theEncryptedPayload;
   }
 
+  /** @return the mac value. */
   public byte[] getMac() {
     return myMac;
   }
 
-  public void setMac(final byte[] theMac) {
-    assert theMac.length == myMacSize;
-    this.myMac = theMac;
+  /**
+   * Sets the mac tag value.
+   * @param the_mac size must be equal to the initialized mac size
+   */
+  public void setMac(final byte[] the_mac) {
+    assert the_mac.length == my_macbytes;
+    this.myMac = the_mac;
+  }
+  
+  /**
+   * @return The size of the mac in bits.
+   */
+  public int getMacBits() {
+    return my_macbytes * Byte.SIZE;
+  }
+  
+  /** @return the size of the mac in bytes. */
+  public int getMacBytes() {
+    return my_macbytes;
   }
 }

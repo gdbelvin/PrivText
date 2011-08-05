@@ -54,7 +54,7 @@ import edu.jhu.privtext.ssms.SessionManager;
 
 public class SendMessage extends Activity {
   private Button btnSend;
-  private SessionManager mySessionMgr;
+  private SessionManager my_sessionmgr;
   private EditText txtMessage;
   private EditText txtPhoneNumber;
 
@@ -66,8 +66,8 @@ public class SendMessage extends Activity {
     this.txtMessage = (EditText) findViewById(R.id.txtMessage);
     this.btnSend = (Button) findViewById(R.id.BtnSend);
 
-    this.mySessionMgr = SessionManager.getInstance();
-    this.mySessionMgr.attachRadio(new AndroidRadio(getBaseContext()));
+    my_sessionmgr = SessionManager.getInstance();
+   
 
     btnSend.setOnClickListener(new OnSendClick());
   }
@@ -78,7 +78,12 @@ public class SendMessage extends Activity {
 
     public void onClick(final View paramView) {
       if ((txtPhoneNumber.getText().length() > 0) && (txtMessage.getText().length() > 0)) {
-        SendMessage.this.mySessionMgr.sendSecureSMS(txtPhoneNumber.getText().toString(),
+        
+        
+        if (!my_sessionmgr.hasSession()) {
+          //Trigger KAPS Negotiation
+        }
+        my_sessionmgr.sendSecureSMS(txtPhoneNumber.getText().toString(),
                                                     txtMessage.getText().toString());
         return;
       }

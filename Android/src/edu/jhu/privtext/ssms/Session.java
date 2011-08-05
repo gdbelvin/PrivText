@@ -27,7 +27,11 @@ import java.nio.ByteBuffer;
 import edu.jhu.bouncycastle.crypto.BlockCipher;
 import edu.jhu.bouncycastle.crypto.CipherParameters;
 import edu.jhu.bouncycastle.crypto.Mac;
-import edu.jhu.bouncycastle.crypto.macs.CMac;
+import edu.jhu.bouncycastle.crypto.digests.Skein;
+import edu.jhu.bouncycastle.crypto.engines.AESEngine;
+import edu.jhu.bouncycastle.crypto.macs.HMac;
+import edu.jhu.bouncycastle.crypto.modes.AEADBlockCipher;
+import edu.jhu.bouncycastle.crypto.modes.EAXBlockCipher;
 import edu.jhu.bouncycastle.crypto.params.KeyParameter;
 
 /**
@@ -37,94 +41,49 @@ import edu.jhu.bouncycastle.crypto.params.KeyParameter;
  * @author Gary Belvin
  * @version 0.1
  */
-public final class Session {
+public class Session {
   /** Number of bits in the message index. */
-  private static final int MSGINDXBITS = 40;
+  protected static final int MSGINDXBITS = 40;
   /** number of bytes in message index. */
-  private static final int MSGINDXBYTES = MSGINDXBITS / Byte.SIZE;
+  protected static final int MSGINDXBYTES = MSGINDXBITS / Byte.SIZE;
   /** Key length for messages. */
-  private static final int MSGKEYLEN = 256;
-  /** Replay window size. */
-  private static final int REPLAYWINDOW = 4;
+  protected static final int MSGKEYLEN = 256;
+  /** Key length in bytes. */
+  protected static final int MSGKEYBYTES = MSGKEYLEN / Byte.SIZE;
   
+  /** An empty byte array for key erasure. */
+  protected static final byte[] EMPTYKEY = new byte[MSGKEYBYTES];
+
   // // SSMS specific settings ////
   /**
-   * The MAC function used for theREPLAYWINDOW KDF is same MAC used in the key agreement
-   * layer.
+   * The MAC function used for theREPLAYWINDOW KDF is same MAC used in the key
+   * agreement layer.
    */
   private final Mac my_kdfmac;
 
-  /**
+  /*
    * The block cipher, and authentication tag algorithm and size are also
    * externally specified.
    */
-  private final BlockCipher myBlockCipher;
-  private final Mac myMacTag = new CMac(myBlockCipher);
+  /**
+   * The authenitcated encryption block cipher for encryption and
+   * authenitcation.
+   */
+  private final AEADBlockCipher my_cipher;
 
-  private final int portNumber;
+  private final int my_portnumber;
   /** The size of the MAC used in this session. */
   private final short my_macbytes = 3;
-  
-  /**
-   * The ReKey frequency is a policy driven value that determines the upper
-   * bound on the number of messages to transmit under a single master key
-   * before halting and requesting a new master key (which is provided from
-   * somewhere else). The rekey frequency must be less than 240, but normal
-   * values will be in the 10 – 100 message range. In the event of an end-point
-   * security breach, a lower rekey frequency will reduce the window of readable
-   * messages before security is restored. Note that a re-key event may be
-   * performed at any time by either party – perhaps especially upon learning of
-   * a compromise. More frequent rekeying increases the overhead from the key
-   * agreement layer.
-   */
-  private final int rekeyfrequency = 30;
-  
-  private final KeyWindow my_keywindow = new KeyWindow(REPLAYWINDOW, MSGKEYLEN);
 
   /** This session id. */
   private final byte[] my_sessionid;
-  
-  /// Sequence Number Accounting ///
-  /** im = 28 · ROLL+SEQ (mod 240). */
-  private long my_messageindex;
-  /** A 32 bit roll over counter. */
-  private long my_rollovercounter;
-  /** The 8 bit sequence number. */
-  private byte my_sequencenum;
-  /** The last valid sequence number recieved. */
-  private byte my_s1;
 
   public Session(final byte[] the_sessionid) {
     my_sessionid = the_sessionid;
-    //= Hex.decode("15B3CA14A92A2A7F2B827A49B901ED76");
-  }
-
-  /**
-   * Sets the message index using the initial master key. Section 2.5.1
-   * 
-   * @param the_masterkey The master key material
-   * @param the_sessionid the session identifier
-   */
-  private void initMessageIndex(final byte[] the_masterkey, final byte[] the_sessionid) {
-    // Initialize rollover counter
-    // Ascii for "InitialIndex"
-    final byte[] label =
-        {0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x49, 0x6e, 0x64, 0x65, 0x78};
-    // session identifier||0
-    final byte[] context = new byte[the_sessionid.length + 1];
-    System.arraycopy(the_sessionid, 0, context, 0, the_sessionid.length);
-    context[the_sessionid.length] = 0x00; // Set the last byte to 0
-
-    // i0 = KDF(Kmaster , “InitialIndex”, session identhe_sessionidtifier||0,
-    // 40)
-    final byte[] i0 = keyDerivationFunction(the_masterkey, label, context, MSGINDXBITS);
-
-    // The rollover counter is assigned the 32 left most bits of im
-    // and the sequence number is assigned the following 8 bits
-    // such that 2^8 · ROLL + SEQ = i0
-    my_rollovercounter = getUnsignedInt(i0, 0);
-    my_sequencenum = i0[4];
-    my_keywindow.putFirstKey(the_key, the_index)
+    my_portnumber = 0;
+    my_kdfmac = new HMac(new Skein(512, 512));
+    my_cipher = new EAXBlockCipher(new AESEngine());
+    // = Hex.decode("15B3CA14A92A2A7F2B827A49B901ED76");
   }
 
   /**
@@ -135,7 +94,7 @@ public final class Session {
    * @param the_msgindex the index of the message to generate the key for
    * @return the next key
    */
-  private byte[] computeMessageKey(final byte[] the_prevkey, final long the_msgindex) {
+  protected byte[] computeMessageKey(final byte[] the_prevkey, final long the_msgindex) {
     // K0 = KDF(Kmaster , “MessageKey”, session identifier||i0 )
     final byte[] label = {0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x4b, 0x65, 0x79};
 
@@ -148,17 +107,30 @@ public final class Session {
 
   /** @return a long containing an unsigned int from the array */
   private long getUnsignedInt(final byte[] the_array, final int the_offset) {
-    return the_array[the_offset] & 0xff << 24 | the_array[the_offset + 1] & 0xff << 16 |
-           the_array[the_offset + 2] & 0xff << 8 | the_array[the_offset + 3] & 0xff;
+    return the_array[the_offset]     & 0xff << 24 | 
+           the_array[the_offset + 1] & 0xff << 16 |
+           the_array[the_offset + 2] & 0xff << 8  | 
+           the_array[the_offset + 3] & 0xff;
   }
 
   /** @return a 4 element array containing the unsigned bigendian int. */
   private byte[] putUnsignedInt(final long the_int) {
-    byte[] out = new byte[4];
+    final byte[] out = new byte[4];
     out[0] = (byte) (the_int & (0xff >> 24));
     out[1] = (byte) (the_int & (0xff >> 16));
     out[2] = (byte) (the_int & (0xff >> 8));
     out[3] = (byte) (the_int & 0xff);
+    return out;
+  }
+
+  /** @return the 40 bits of the message index. */
+  public byte[] getIndexBytes(final long the_index) {
+    final byte[] out = new byte[5];
+    out[0] = (byte) (the_index & (0xff >> 32));
+    out[1] = (byte) (the_index & (0xff >> 24));
+    out[2] = (byte) (the_index & (0xff >> 16));
+    out[3] = (byte) (the_index & (0xff >> 8));
+    out[4] = (byte) (the_index & 0xff);
     return out;
   }
 
@@ -204,36 +176,9 @@ public final class Session {
     return output;
   }
 
-  /**
-   * Estimates the index number given a sequence number and the rollover
-   * counter.
-   * 
-   * Adapted from RFC 3711 Appendix A - Pseudocode for Index Determination
-   * 
-   * @param the_sequencenum of the message
-   * @return the index number
-   */
-  public long getMessageIndex(final byte the_sequencenum) {
-    final int halfway = 0x80; // Using 8 bit sequence numbers
-    long v;
-    if (my_s1 < halfway) {
-      if (the_sequencenum - my_s1 > halfway) {
-        v = mod32(my_rollovercounter - 1);
-      } else {
-        v = my_rollovercounter;
-      }
-    } else {
-      if (my_s1 - halfway > the_sequencenum) {
-        v = mod32(my_rollovercounter + 1);
-      } else {
-        v = my_rollovercounter;
-      }
-    }
-    return the_sequencenum + (v << 8);
-  }
 
   /** @return the value of the_num mod 2^32. */
-  private long mod32(long the_num) {
+  protected long mod32(final long the_num) {
     final long two32 = 0x100000000L;
     long r = the_num % two32;
     if (r < 0) {
@@ -242,21 +187,23 @@ public final class Session {
     return r;
   }
 
+  /** @return the value of the_num mod 2^40. */
+  protected long mod40(final long the_num) {
+    final long two40 = 0x10000000000L;
+    long r = the_num % two40;
+    if (r < 0) {
+      r += two40;
+    }
+    return r;
+  }
+
   /** @return the size of the MAC used in this session in bytes. */
   public short getMacSize() {
     return my_macbytes;
   }
-  
-  /**
-   * Verifies that this message is not out of order. 
-   * @param the_messageindex to check
-   * @return whether we could have a valid key for that message. 
-   */
-  public boolean hasKey(final long the_messageindex) {
-    boolean havekey = my_keywindow.hasKey(the_messageindex);
-    boolean couldhavekey = 
-      (the_messageindex - my_keywindow.getHeadIndex()) < REPLAYWINDOW;
-    
-    return havekey || couldhavekey;
+
+  /** @return the authenticated encryption cipher. */
+  public AEADBlockCipher getAECipher() {
+    return my_cipher;
   }
 }

@@ -19,6 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
 package edu.jhu.privtext.util.encoders;
 
 import java.nio.ByteBuffer;
@@ -26,64 +27,64 @@ import java.nio.ByteBuffer;
 import android.telephony.SmsMessage;
 
 /**
- * The plain text message format
- * "The cipher text itself contains a padding format: 
- * First a one octet value denoting the length of the plaintext, 
- * the plaintext, optionally followed a null padding to 
- * expand the payload to the full 140 octet envelope" 
+ * The plain text message format "The cipher text itself contains a padding
+ * format: First a one octet value denoting the length of the plaintext, the
+ * plaintext, optionally followed a null padding to expand the payload to the
+ * full 140 octet envelope".
  * @author Gary Belvin
- *
+ * @version 0.1
  */
 public class SSMS_PTPayload {
-	/** A flag that turns on plain-text padding
-	 * Security implication: by making all messages equal length, 
-	 * an adversary will not be able to learn anything from the ciphertext length. 
-	 */
-	private final static boolean PlaintextPadding = true;
+  /**
+   * A flag that turns on plain-text padding Security implication: by making all
+   * messages equal length, an adversary will not be able to learn anything from
+   * the ciphertext length.
+   */
+  private static final boolean PlaintextPadding = true;
 
-	public static byte[] parse(byte[] thePayload) {
-		// The first byte should be the length
-		ByteBuffer bb = ByteBuffer.wrap(thePayload);
-		byte ptlen = bb.get();
-		byte[] pt = new byte[ptlen];
-		bb.get(pt);
+  public static byte[] parse(final byte[] thePayload) {
+    // The first byte should be the length
+    final ByteBuffer bb = ByteBuffer.wrap(thePayload);
+    final byte ptlen = bb.get();
+    final byte[] pt = new byte[ptlen];
+    bb.get(pt);
 
-		return pt;
-	}
+    return pt;
+  }
 
-	/**
-	 * Wraps a plain text message with the appropriate header and padding. 
-	 * @param theMaxPayloadSize The size of the desired resulting package. 
-	 * This is determined by the size of MAC used in the SSMS_UserData layer
-	 * @param thePlaintext 
-	 * @return A message of the format [bytes of plaintext][the plaintext][null padding]
-	 */
-	public static byte[] wrapPlainText(byte theMaxPayloadSize,
-			byte[] thePlaintext) {
-		assert theMaxPayloadSize > 1
-				&& theMaxPayloadSize < SmsMessage.MAX_USER_DATA_SEPTETS_WITH_HEADER;
-		assert (thePlaintext.length + 1) <= theMaxPayloadSize;
+  /**
+   * Wraps a plain text message with the appropriate header and padding.
+   * @param theMaxPayloadSize The size of the desired resulting package. This is
+   *          determined by the size of MAC used in the SSMS_UserData layer
+   * @param thePlaintext
+   * @return A message of the format [bytes of plaintext][the plaintext][null
+   *         padding]
+   */
+  public static byte[] wrapPlainText(final byte theMaxPayloadSize, final byte[] thePlaintext) {
+    assert theMaxPayloadSize > 1 &&
+           theMaxPayloadSize < SmsMessage.MAX_USER_DATA_SEPTETS_WITH_HEADER;
+    assert (thePlaintext.length + 1) <= theMaxPayloadSize;
 
-		byte outputlen;
-		if (PlaintextPadding) {
-			outputlen = theMaxPayloadSize;
+    byte outputlen;
+    if (PlaintextPadding) {
+      outputlen = theMaxPayloadSize;
 
-		} else {
-			// Reserve one byte for the payload length
-			outputlen = (byte) (thePlaintext.length + 1);
-		}
+    } else {
+      // Reserve one byte for the payload length
+      outputlen = (byte) (thePlaintext.length + 1);
+    }
 
-		ByteBuffer ud = ByteBuffer.allocate(outputlen);
-		ud.put((byte) thePlaintext.length);
-		ud.put(thePlaintext);
-		// The if statement is probably unnecessary but adds clarity.
-		if (PlaintextPadding) {
-			int paddinglen = outputlen - 1 - thePlaintext.length;
-			byte[] padding = new byte[paddinglen];
-			ud.put(padding);
-		}
+    final ByteBuffer ud = ByteBuffer.allocate(outputlen);
+    ud.put((byte) thePlaintext.length);
+    ud.put(thePlaintext);
+    // The if statement is probably unnecessary but adds clarity.
+    if (PlaintextPadding) {
+      final int paddinglen = outputlen - 1 - thePlaintext.length;
+      final byte[] padding = new byte[paddinglen];
+      ud.put(padding);
+    }
 
-		return ud.array();
-	}
+    return ud.array();
+  }
 
 }

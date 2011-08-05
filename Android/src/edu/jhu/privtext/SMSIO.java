@@ -23,28 +23,28 @@
 package edu.jhu.privtext;
 
 /**
- * An interface that defines the external interface to PrivText. 
- * Individual phones implement the interface according to their needs
+ * An interface that defines the external interface to PrivText. Individual
+ * phones implement the interface according to their needs
  * @author Gary Belvin
- *
+ * @version 0.1
  */
 public abstract class SMSIO {
-	/** The port used for PDUs */
-	static short APP_PORT = (short) 16474; 	//Standard port for this application
-	// 16000-16999 are valid application ports
+  /** The port used for PDUs. */
+  private static short APP_PORT = (short) 16474; // Standard port for this application
 
-	/**
-	 * @param thePhoneNo
-	 * @param theUserData  The user portion of the PDU.  
-	 * This is not the raw PDU unfortunately since Android does not 
-	 * support that functionality
-	 */
-	public abstract void sendPDU(String thePhoneNo, byte[] theUserData);
+  // 16000-16999 are valid application ports
 
-	public abstract void sendText(String thePhoneNo, String theMessage);
+  /**
+   * @param the_phonenum
+   * @param the_userdata The user portion of the PDU. This is not the raw PDU
+   *          unfortunately since Android does not support that functionality
+   */
+  public abstract void sendPDU(String the_phonenum, byte[] the_userdata);
 
-	public short getAppPort() {
-		return APP_PORT;
-	}
+  public abstract void sendText(String the_phonenum, String the_message);
+
+  public short getAppPort() {
+    return APP_PORT;
+  }
 
 }

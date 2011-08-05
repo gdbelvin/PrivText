@@ -28,11 +28,13 @@ import java.util.HashMap;
 
 import android.util.Log;
 import edu.jhu.bouncycastle.crypto.Digest;
+import edu.jhu.bouncycastle.crypto.InvalidCipherTextException;
 import edu.jhu.bouncycastle.crypto.digests.Skein;
 import edu.jhu.bouncycastle.util.encoders.Hex;
 import edu.jhu.privtext.crypto.GZEncode;
 import edu.jhu.privtext.crypto.GZEngine;
-import edu.jhu.privtext.util.encoders.SSMS_UserDataHeader;
+import edu.jhu.privtext.util.encoders.SSMS_PTPayload;
+import edu.jhu.privtext.util.encoders.UserDataHeader;
 import edu.jhu.privtext.util.encoders.UserDataPart;
 
 /**
@@ -109,6 +111,136 @@ public final class SessionManager {
     }
   }
 
+  /**
+   * Examines message to see if it is part of an active session. If so, the
+   * plaintext of the message is returned. Section 2.8.3
+   * 
+   * @param the_userdata The User Data portion of the SMS
+   * @param the_srcnum The sender's phone number
+   * @param the_dstnum This device's phone number
+   * @return the plaintext if a valid message was received. null otherwise.
+   * @throws InvalidCipherTextException when an invalid MAC is received.
+   * @throws ReplayAttackException when a late or duplicate message is received.
+   */
+  public byte[] processIncomingSMS(final String the_srcnum, final String the_dstnum,
+                                   final byte[] the_userdata)
+      throws InvalidCipherTextException, ReplayAttackException {
+    // 1 Determine the session identifier based on source address and port
+    // number
+    final UserDataHeader udh = new UserDataHeader(the_userdata);
+    final byte[] sessionID =
+        computeSessionID(the_srcnum, udh.getSrcPort(), the_dstnum, udh.getDstPort());
+
+    /*
+     * When receiving an incoming message, an end point uses the session
+     * identifier as an index into a table of active sessions. If no active
+     * session is found for an incoming message, the message is dropped without
+     * further inspection
+     */
+    if (my_Sessions.containsKey(sessionID)) {
+      // 2 Determine the index of the message
+      final RecievingSession ses = (RecievingSession) my_Sessions.get(sessionID);
+      final UserDataPart ud = new UserDataPart(the_userdata, ses.getMacSize());
+      final long indx = ses.estimateMessageIndex(ud.getSequenceNumber());
+
+      // Check if the message has been replayed.
+      // If the message has been replayed, discard, and log the event.
+      if (ses.hasKey(indx)) {
+        // Verify MAC
+        final byte[] indxbytes = ses.getIndexBytes(indx);
+        if (GZEngine.verifyMac(ses.getAECipher(), ses.getKey(indx), ud, indxbytes)) {
+          // 6. Decrypt the encrypted portion of the message.
+          final byte[] plaintext =
+              SSMS_PTPayload.parse(GZEngine.decrypt(ses.getAECipher(), ses.getKey(indx), ud,
+                                                    indxbytes));
+
+          // 5. Advance session key as needed
+          // 6. Advance replay window by erasing keys.
+          // 7. Update the rollover counter and highest sequence number.
+          ses.confirmMessage(indx);
+          return plaintext;
+
+        } else {
+          // Warn user if invalid mac is found (Section 2.6)
+          throw new InvalidCipherTextException("Invalid MAC");
+        }
+      } else {
+        // Message played out of sequence. Log event
+        throw new ReplayAttackException();
+      }
+    } else {
+      return null; // Not a SSMS message for an active session.
+    }
+  }
+  
+  /**
+   * Sends an outgoing SSMS message for an active session.
+   * Section 2.8.2
+   * 
+   * @param the_userdata The User Data portion of the SMS
+   * @param the_srcnum This device's phone number 
+   * @param the_dstnum This destination device's phone number
+   * @return the plaintext if a valid message was received. null otherwise.
+   * @throws InvalidCipherTextException when an invalid MAC is received.
+   * @throws ReplayAttackException when a late or duplicate message is received.
+   */
+  public byte[] processOutgoingSMS(final String the_srcnum, final String the_dstnum,
+                                   final short the_srcport, final short the_dstport,
+                                   final byte[] the_message)
+    {
+    //1. Determine the session identifier
+    final byte[] sessionID =
+        computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
+
+    if (my_Sessions.containsKey(sessionID)) {      
+      // 2 Determine the index of the message
+      final SendingSession ses = (SendingSession) my_Sessions.get(sessionID);
+
+      // 2. Determine the index of the message based on rollover counter
+      final long indx = ses.getNextMessageIndex();
+
+      /* 3. Encrypt and Authenticate the message. 
+       * 4. Advance session key by executing the KDF function on the current key. 
+       * 5. Update the rollover counter if necessary.
+       */
+      final byte mac_size = 3;
+      final byte[] indxbytes = ses.getIndexBytes(indx);
+      final byte sequencenum;
+      final byte[] aeciphertext = 
+        GZEngine.encrypt(ses.getAECipher(), ses.getKey(indx), the_message, indxbytes);
+      final byte[] ct;
+      final byte[] mac;
+      UserDataPart ud = new UserDataPart(sequencenum, ct, mac, mac_size);
+      
+      
+        if (GZEngine.verifyMac(, ses.getKey(indx), ud, indxbytes)) {
+          // 6. Decrypt the encrypted portion of the message.
+          final byte[] plaintext =
+              SSMS_PTPayload.parse(GZEngine.decrypt(ses.getAECipher(), ses.getKey(indx), ud,
+                                                    indxbytes));
+
+          // 5. Advance session key as needed
+          // 6. Advance replay window by erasing keys.
+          // 7. Update the rollover counter and highest sequence number.
+          ses.confirmMessage(indx);
+          return plaintext;
+
+        } else {
+          // Warn user if invalid mac is found (Section 2.6)
+          throw new InvalidCipherTextException("Invalid MAC");
+        }
+      } else {
+        // Message played out of sequence. Log event
+        throw new ReplayAttackException();
+      }
+    } else {
+      //No session has been established for these endpoints. 
+      //Trigger a KAPS negotiation to set it up.
+      //TODO: throw new NoEstablishedSessionException();
+    }
+  }
+  
+  
   public void sendSecureSMS(final String phoneNo, final String message) {
     // Look up session
     final Session myses;
@@ -140,62 +272,4 @@ public final class SessionManager {
       localException.printStackTrace();
     }
   }
-
-  /**
-   * Examines message to see if it is part of an active session. If so, the
-   * plaintext of the message is returned. Section 2.8.3
-   * 
-   * @param the_userdata The User Data portion of the SMS
-   * @param the_srcnum The sender's phone number
-   * @param the_dstnum This device's phone number
-   */
-  public void processIncomingSMS(final String the_srcnum, final String the_dstnum,
-                                 final byte[] the_userdata) {
-    // 1 Determine the session identifier based on source address and port
-    // number
-    final SSMS_UserDataHeader udh = new SSMS_UserDataHeader(the_userdata);
-    final byte[] sessionID =
-        computeSessionID(the_srcnum, udh.getSrcPort(), the_dstnum, udh.getDstPort());
-
-    /*
-     * When receiving an incoming message, an end point uses the session
-     * identifier as an index into a table of active sessions. If no active
-     * session is found for an incoming message, the message is dropped without
-     * further inspection
-     */
-    if (my_Sessions.containsKey(sessionID)) {
-      // 2 Determine the index of the message
-      final Session ses = my_Sessions.get(sessionID);
-      final UserDataPart ud = new UserDataPart(the_userdata, ses.getMacSize());
-      final long indx = ses.getMessageIndex(ud.getSequenceNumber());
-
-      // Check if the message has been replayed.
-      // If the message has been replayed, discard, and log the event.
-      if (ses.hasKey(indx)) {
-        byte[] mac = ud.getMac();
-        // Verify MAC
-        // Warn user if invalid mac is found (Section 2.6)
-
-        // 5. Advance session key as needed, storing intermediate values of
-        // skipped messages for a short
-        // period of time.
-        // 6. Decrypt the encrypted portion of the message.
-        // 7. Update the rollover counter and highest sequence number. Update
-        // replay window by erasing
-        // keys.        
-      }
-      else{
-        //Message played out of sequence. Log event
-      }
-    }
-  }
-
-  public String recieveSecureText(final byte[] theUserData) {
-
-      plaintext = myCipher.decrypt(ciphertext, key, nonce);
-      message = GZEncode.decodeString(plaintext);
-
-    return message;
-  }
-
 }
