@@ -1,11 +1,12 @@
+
 package edu.jhu.privtext.ssms;
 
-public class RecievingSession extends Session{
+public class RecievingSession extends Session {
   /** Replay window size. */
   private static final int REPLAYWINDOW = 4;
   /** A data structure for storing temporary keys with timed erasure. */
   private final KeyWindow my_keywindow = new KeyWindow(REPLAYWINDOW, MSGKEYBYTES);
-  
+
   /** A 32 bit roll over counter. */
   private long my_rollovercounter;
   /** The last valid sequence number received. */
@@ -15,7 +16,7 @@ public class RecievingSession extends Session{
     super(the_sessionid);
     // TODO Auto-generated constructor stub
   }
-  
+
   /**
    * Updates the session state after receiving a valid message. 1) Advances the
    * session key as needed 2) Erases message key 3) Updates the rollover counter
@@ -54,7 +55,7 @@ public class RecievingSession extends Session{
       my_sl = seq;
     }
   }
-  
+
   /**
    * Estimates the index number given a sequence number and the rollover
    * counter.
@@ -82,7 +83,7 @@ public class RecievingSession extends Session{
     }
     return the_sequencenum + (v << 8);
   }
-  
+
   /**
    * Verifies that this message is not out of order.
    * @param the_messageindex to check
@@ -95,8 +96,8 @@ public class RecievingSession extends Session{
 
     return havekey || couldhavekey;
   }
-  
-  /** 
+
+  /**
    * @param the_messageindex of the key requested.
    * @return the key of the requested message index.
    */

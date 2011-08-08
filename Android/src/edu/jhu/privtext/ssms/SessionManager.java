@@ -25,44 +25,37 @@ package edu.jhu.privtext.ssms;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Map;
 
-import android.util.Log;
 import edu.jhu.bouncycastle.crypto.Digest;
 import edu.jhu.bouncycastle.crypto.InvalidCipherTextException;
 import edu.jhu.bouncycastle.crypto.digests.Skein;
-import edu.jhu.bouncycastle.util.encoders.Hex;
-import edu.jhu.privtext.crypto.GZEncode;
-import edu.jhu.privtext.crypto.GZEngine;
+import edu.jhu.privtext.crypto.CipherWrapper;
 import edu.jhu.privtext.util.encoders.SSMS_PTPayload;
 import edu.jhu.privtext.util.encoders.UserDataHeader;
 import edu.jhu.privtext.util.encoders.UserDataPart;
 
 /**
- * This singleton class manages the session keys for all SSMS secure
+ * This singleton class that manages the session keys for all SSMS secure
  * conversations.
  * 
  * @author Gary Belvin
+ * @version 0.1
  */
 public final class SessionManager {
-  private static final String TAG = SessionManager.class.getCanonicalName();
+  /** The singleton instance of myself. */
   private static SessionManager myself;
-  private GZEngine myCipher;
 
-  /** The hash function used for the session identifier */
-  public Digest sessionIDHash;
+  /** The hash function used for the session identifier. */
+  private Digest my_sesidhashfunc;
 
-  private HashMap<byte[], Session> my_Sessions = new HashMap<byte[], Session>();
+  /** The store for all active SSMS sessions, both incoming and outgoing. */
+  private Map<byte[], Session> my_sessions = new HashMap<byte[], Session>();
 
-  /**
-   * @param theRadio The SMS input and output functions. This is needed in case
-   *          messages span more than one message.
-   * @param theDeviceNo the Phone number for this device
-   */
+  /** Instantiates the session manager. */
   private SessionManager() {
-    myCipher = new GZEngine();
-
     /** according to table 3.1, Skein-512 is to be used in version 0.1. */
-    sessionIDHash = new Skein(512, 512);
+    my_sesidhashfunc = new Skein(512, 512);
   }
 
   /** @return the single instance of the session manager. */
@@ -75,32 +68,36 @@ public final class SessionManager {
 
   /**
    * Obfuscates the identities of communicating parties. Session Identifier =
-   * H(src number||0x3A||src port|| 0x00 ||dest number||0x3A||dest port)
+   * H(src number||0x3A||src port|| 0x00 ||dest number||0x3A||dest port).
+   * 
+   * @param the_srcnum Source Phone Number
+   * @param the_srcport Source application port 
+   * @param the_dstnum Destination Phone Number 
+   * @param the_dstport Destination application port
+   * @return the session id
    */
-  private byte[] computeSessionID(final String srcNum, final short srcPort,
-                                  final String dstNum, final short dstPort) {
+  private byte[] computeSessionID(final String the_srcnum, final short the_srcport,
+                                  final String the_dstnum, final short the_dstport) {
     try {
       final byte variableLengthSeparator = 0x00;
 
-      final byte[] src = srcNum.getBytes("UTF-8");
-      final byte[] dst = dstNum.getBytes("UTF-8");
+      final byte[] src = the_srcnum.getBytes("UTF-8");
+      final byte[] dst = the_dstnum.getBytes("UTF-8");
 
       final int capacity = src.length + 1 + 2 + 1 + dst.length + 1 + 2;
       final ByteBuffer bb = ByteBuffer.allocate(capacity);
       bb.put(src);
       bb.put((byte) 0x3A);
-      bb.put((byte) (srcPort >> 8 & 0xff)); // Big endian
-      bb.put((byte) (srcPort & 0xff));
+      bb.putShort(the_srcport);
       bb.put(variableLengthSeparator);
       bb.put(dst);
       bb.put((byte) 0x3A);
-      bb.put((byte) (dstPort >> 8 & 0xff)); // Big endian
-      bb.put((byte) (dstPort & 0xff));
+      bb.putShort(the_dstport);
 
-      final byte[] id = new byte[sessionIDHash.getDigestSize()];
-      sessionIDHash.reset();
-      sessionIDHash.update(bb.array(), 0, capacity);
-      sessionIDHash.doFinal(id, 0);
+      final byte[] id = new byte[my_sesidhashfunc.getDigestSize()];
+      my_sesidhashfunc.reset();
+      my_sesidhashfunc.update(bb.array(), 0, capacity);
+      my_sesidhashfunc.doFinal(id, 0);
 
       return id;
 
@@ -124,7 +121,7 @@ public final class SessionManager {
    */
   public byte[] processIncomingSMS(final String the_srcnum, final String the_dstnum,
                                    final byte[] the_userdata)
-      throws InvalidCipherTextException, ReplayAttackException {
+    throws InvalidCipherTextException, ReplayAttackException {
     // 1 Determine the session identifier based on source address and port
     // number
     final UserDataHeader udh = new UserDataHeader(the_userdata);
@@ -137,9 +134,9 @@ public final class SessionManager {
      * session is found for an incoming message, the message is dropped without
      * further inspection
      */
-    if (my_Sessions.containsKey(sessionID)) {
+    if (my_sessions.containsKey(sessionID)) {
       // 2 Determine the index of the message
-      final RecievingSession ses = (RecievingSession) my_Sessions.get(sessionID);
+      final RecievingSession ses = (RecievingSession) my_sessions.get(sessionID);
       final UserDataPart ud = new UserDataPart(the_userdata, ses.getMacSize());
       final long indx = ses.estimateMessageIndex(ud.getSequenceNumber());
 
@@ -148,10 +145,10 @@ public final class SessionManager {
       if (ses.hasKey(indx)) {
         // Verify MAC
         final byte[] indxbytes = ses.getIndexBytes(indx);
-        if (GZEngine.verifyMac(ses.getAECipher(), ses.getKey(indx), ud, indxbytes)) {
+        if (CipherWrapper.verifyMac(ses.getAECipher(), ses.getKey(indx), ud, indxbytes)) {
           // 6. Decrypt the encrypted portion of the message.
           final byte[] plaintext =
-              SSMS_PTPayload.parse(GZEngine.decrypt(ses.getAECipher(), ses.getKey(indx), ud,
+              SSMS_PTPayload.parse(CipherWrapper.decrypt(ses.getAECipher(), ses.getKey(indx), ud,
                                                     indxbytes));
 
           // 5. Advance session key as needed
@@ -172,104 +169,57 @@ public final class SessionManager {
       return null; // Not a SSMS message for an active session.
     }
   }
-  
+
   /**
-   * Sends an outgoing SSMS message for an active session.
-   * Section 2.8.2
+   * Sends an outgoing SSMS message for an active session. Section 2.8.2
    * 
-   * @param the_userdata The User Data portion of the SMS
-   * @param the_srcnum This device's phone number 
+   * @param the_message the encoded message to send
+   * @param the_srcnum This device's phone number
    * @param the_dstnum This destination device's phone number
+   * @param the_srcport of this protocol
+   * @param the_dstport of this protocol
    * @return the plaintext if a valid message was received. null otherwise.
-   * @throws InvalidCipherTextException when an invalid MAC is received.
-   * @throws ReplayAttackException when a late or duplicate message is received.
    */
   public byte[] processOutgoingSMS(final String the_srcnum, final String the_dstnum,
                                    final short the_srcport, final short the_dstport,
-                                   final byte[] the_message)
-    {
-    //1. Determine the session identifier
+                                   final byte[] the_message) {
+    // 1. Determine the session identifier
     final byte[] sessionID =
         computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
 
-    if (my_Sessions.containsKey(sessionID)) {      
+    if (my_sessions.containsKey(sessionID)) {
       // 2 Determine the index of the message
-      final SendingSession ses = (SendingSession) my_Sessions.get(sessionID);
+      final SendingSession ses = (SendingSession) my_sessions.get(sessionID);
 
       // 2. Determine the index of the message based on rollover counter
-      final long indx = ses.getNextMessageIndex();
+      final long indx = ses.getMessageIndex();
 
-      /* 3. Encrypt and Authenticate the message. 
-       * 4. Advance session key by executing the KDF function on the current key. 
-       * 5. Update the rollover counter if necessary.
-       */
-      final byte mac_size = 3;
-      final byte[] indxbytes = ses.getIndexBytes(indx);
-      final byte sequencenum;
-      final byte[] aeciphertext = 
-        GZEngine.encrypt(ses.getAECipher(), ses.getKey(indx), the_message, indxbytes);
-      final byte[] ct;
-      final byte[] mac;
-      UserDataPart ud = new UserDataPart(sequencenum, ct, mac, mac_size);
-      
-      
-        if (GZEngine.verifyMac(, ses.getKey(indx), ud, indxbytes)) {
-          // 6. Decrypt the encrypted portion of the message.
-          final byte[] plaintext =
-              SSMS_PTPayload.parse(GZEngine.decrypt(ses.getAECipher(), ses.getKey(indx), ud,
-                                                    indxbytes));
+      // 3. Encrypt and Authenticate the message.
+      final UserDataPart ud = new UserDataPart(ses.getMacSize());
+      ud.setSequenceNumber(ses.getSequenceNumber());
+      ud.setUserDataHeader(new UserDataHeader(the_srcport, the_dstport));
+      final byte[] plaintext =
+          SSMS_PTPayload.wrapPlainText(ud.getMaxPayloadSize(), the_message);
 
-          // 5. Advance session key as needed
-          // 6. Advance replay window by erasing keys.
-          // 7. Update the rollover counter and highest sequence number.
-          ses.confirmMessage(indx);
-          return plaintext;
+      final byte[] aeciphertext =
+          CipherWrapper.encrypt(ses.getAECipher(), ses.getKey(), ud, plaintext,
+                           ses.getIndexBytes(indx));
+      ud.setEncryptedPayload(aeciphertext);
 
-        } else {
-          // Warn user if invalid mac is found (Section 2.6)
-          throw new InvalidCipherTextException("Invalid MAC");
-        }
-      } else {
-        // Message played out of sequence. Log event
-        throw new ReplayAttackException();
+      try {
+        // 4. Advance session key by executing the KDF function
+        // 5. Update the rollover counter if necessary.
+        ses.advanceIndex();
+      } catch (final RekeyException e) {
+        // TODO: launch new key agreement to re-establish the session.
       }
+      return plaintext;
+
     } else {
-      //No session has been established for these endpoints. 
-      //Trigger a KAPS negotiation to set it up.
-      //TODO: throw new NoEstablishedSessionException();
-    }
-  }
-  
-  
-  public void sendSecureSMS(final String phoneNo, final String message) {
-    // Look up session
-    final Session myses;
-
-    // TODO Verification
-    // if( phoneNo is not valid phone number ) throw new invalid phone
-
-    final byte[] bmsg = GZEncode.encodeString(message);
-    byte[] ciphertext = new byte[0];
-    final byte[] payload;
-    final byte[] mac;
-    try {
-      ciphertext = this.myCipher.encrypt(bmsg, key, nonce, myMacSize);
-      Log.v("Privtext-GZSession", "CT    " + Hex.printHex(ciphertext));
-      Log.v("Privtext-GZSession", "Key   " + Hex.printHex(key));
-      Log.v("Privtext-GZSession", "Nonce " + Hex.printHex(nonce));
-
-      final SSMS_UserData userdata =
-          new SSMS_UserData(myses.macSize, myses.SequenceNumber, ciphertext, mac);
-      // Message size = [ 1 byte nonce][x byte message][ 1 byte mac]
-
-      if (payload.length >= 134) {
-        return;
-      }
-      this.myRadio.sendPDU(phoneNo, userdata.getUserData());
-      return;
-    } catch (final Exception localException) {
-      Log.v("Privtext-GZSession", "Cipher not initialized");
-      localException.printStackTrace();
+      // No session has been established for these endpoints.
+      // Trigger a KAPS negotiation to set it up.
+      // TODO: throw new NoEstablishedSessionException();
+      return null;
     }
   }
 }

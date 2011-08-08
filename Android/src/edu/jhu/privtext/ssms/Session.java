@@ -50,7 +50,7 @@ public class Session {
   protected static final int MSGKEYLEN = 256;
   /** Key length in bytes. */
   protected static final int MSGKEYBYTES = MSGKEYLEN / Byte.SIZE;
-  
+
   /** An empty byte array for key erasure. */
   protected static final byte[] EMPTYKEY = new byte[MSGKEYBYTES];
 
@@ -87,6 +87,35 @@ public class Session {
   }
 
   /**
+   * Sets the message index using the initial master key. Section 2.5.1
+   * 
+   * @param the_masterkey The master key material
+   * @param the_sessionid the session identifier
+   * @return the first message index
+   */
+  protected long getInitMessageIndex(final byte[] the_masterkey, final byte[] the_sessionid) {
+    // Initialize rollover counter
+    // Ascii for "InitialIndex"
+    final byte[] label =
+    {0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x49, 0x6e, 0x64, 0x65, 0x78};
+    // session identifier||0
+    final byte[] context = new byte[the_sessionid.length + 1];
+    System.arraycopy(the_sessionid, 0, context, 0, the_sessionid.length);
+    context[the_sessionid.length] = 0x00; // Set the last byte to 0
+
+    // i0 = KDF(Kmaster , “InitialIndex”, session identhe_sessionidtifier||0,
+    // 40)
+    final byte[] i0 = keyDerivationFunction(the_masterkey, label, context, MSGINDXBITS);
+
+    // The rollover counter is assigned the 32 left most bits of im
+    // and the sequence number is assigned the following 8 bits
+    // such that 2^8 · ROLL + SEQ = i0
+    final long rollovercounter = getUnsignedInt(i0, 0);
+    final byte sequencenum = i0[4];
+    return rollovercounter << 8 + sequencenum;
+  }
+
+  /**
    * Generates the next message encryption key in the perfect-forward-secrecy
    * scheme. Section 2.5.2
    * 
@@ -107,10 +136,8 @@ public class Session {
 
   /** @return a long containing an unsigned int from the array */
   private long getUnsignedInt(final byte[] the_array, final int the_offset) {
-    return the_array[the_offset]     & 0xff << 24 | 
-           the_array[the_offset + 1] & 0xff << 16 |
-           the_array[the_offset + 2] & 0xff << 8  | 
-           the_array[the_offset + 3] & 0xff;
+    return the_array[the_offset] & 0xff << 24 | the_array[the_offset + 1] & 0xff << 16 |
+           the_array[the_offset + 2] & 0xff << 8 | the_array[the_offset + 3] & 0xff;
   }
 
   /** @return a 4 element array containing the unsigned bigendian int. */
@@ -175,7 +202,6 @@ public class Session {
 
     return output;
   }
-
 
   /** @return the value of the_num mod 2^32. */
   protected long mod32(final long the_num) {

@@ -23,14 +23,23 @@
 package edu.jhu.privtext.crypto;
 
 import edu.jhu.bouncycastle.crypto.InvalidCipherTextException;
-import edu.jhu.bouncycastle.crypto.engines.AESEngine;
+import edu.jhu.bouncycastle.crypto.RuntimeCryptoException;
 import edu.jhu.bouncycastle.crypto.modes.AEADBlockCipher;
-import edu.jhu.bouncycastle.crypto.modes.EAXBlockCipher;
 import edu.jhu.bouncycastle.crypto.params.CCMParameters;
 import edu.jhu.bouncycastle.crypto.params.KeyParameter;
 import edu.jhu.privtext.util.encoders.UserDataPart;
 
-public class GZEngine {
+/**
+ * Wrapper for encryption, decryption, and verification functions.
+ * @author Gary Belvin
+ * @version 0.1
+ */
+public final class CipherWrapper {
+
+  /** Prevent instantiation of the utility class. */
+  private CipherWrapper() {
+  }
+
   /**
    * Implements EAX style MAC verification. When used with an OMAC on the same
    * cipher as the encrypted data, is is safe to use the same key for mac tags
@@ -48,11 +57,11 @@ public class GZEngine {
     final byte[] associated_text = the_message.getUserDataHeader();
     final CCMParameters params =
         new CCMParameters(keyparam, the_message.getMacBits(), the_nonce, associated_text);
+    the_cipher.init(false, params);
 
     final int minSize = the_cipher.getOutputSize(the_message.getEncryptedPayload().length);
-    final byte[] plaintext = new byte[minSize - the_message.getMacBytes()];
+    final byte[] plaintext = new byte[minSize];
 
-    the_cipher.init(false, params);
     try {
       final int len =
           the_cipher.processBytes(the_message.getEncryptedPayload(), 0,
@@ -79,10 +88,10 @@ public class GZEngine {
     final CCMParameters params =
         new CCMParameters(keyparam, the_message.getMacBits(), the_nonce, associated_text);
 
-    final int minSize = the_cipher.getOutputSize(the_message.getEncryptedPayload().length);
-    final byte[] plaintext = new byte[minSize - the_message.getMacBytes()];
-
     the_cipher.init(false, params);
+    final int minSize = the_cipher.getOutputSize(the_message.getEncryptedPayload().length);
+    final byte[] plaintext = new byte[minSize];
+
     try {
       final int len =
           the_cipher.processBytes(the_message.getEncryptedPayload(), 0,
@@ -94,19 +103,33 @@ public class GZEngine {
     }
   }
 
+  /**
+   * 
+   * @param the_cipher the authenticated encryption scheme to use.
+   * @param the_key to encrypt with
+   * @param the_envelope with a set UserDataHeader and proper mac size set.
+   * @param the_message the plaintext
+   * @param the_nonce the index of the message to encrypt.
+   * @return authenticated encryption payload
+   */
   public static byte[] encrypt(final AEADBlockCipher the_cipher, final byte[] the_key,
-                               final UserDataPart the_message, final byte[] the_nonce) {
+                               final UserDataPart the_envelope, final byte[] the_message,
+                               final byte[] the_nonce) {
     final KeyParameter keyparam = new KeyParameter(the_key);
-    final byte[] associated_text = the_message.getUserDataHeader();
+    final byte[] associated_text = the_envelope.getUserDataHeader();
     final CCMParameters params =
-        new CCMParameters(keyparam, the_message.getMacBits(), the_nonce, associated_text);
+        new CCMParameters(keyparam, the_envelope.getMacBits(), the_nonce, associated_text);
 
-    final int minSize = the_cipher.getOutputSize(the_message.get.length);
-    final int macSize = MAC_SIZE;
-    final byte[] ciphertext = new byte[minSize + macSize];
-    eax.init(true, params);
-    int len = eax.processBytes(thePlaintext, 0, thePlaintext.length, ciphertext, 0);
-    len += eax.doFinal(ciphertext, len);
+    the_cipher.init(true, params);
+
+    final byte[] ciphertext = new byte[the_cipher.getOutputSize(the_message.length)];
+    try {
+      final int len =
+          the_cipher.processBytes(the_message, 0, the_message.length, ciphertext, 0);
+      the_cipher.doFinal(ciphertext, len);
+    } catch (final InvalidCipherTextException e) {
+      throw new RuntimeCryptoException("Uncaught Cipher Exception");
+    }
     return ciphertext;
   }
 }

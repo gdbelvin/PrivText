@@ -1,3 +1,4 @@
+
 package edu.jhu.privtext.ssms;
 
 public class SendingSession extends Session {
@@ -13,40 +14,59 @@ public class SendingSession extends Session {
    * a compromise. More frequent rekeying increases the overhead from the key
    * agreement layer.
    */
-  private final int rekeyfrequency = 30;
+  private final int my_rekeyfrequency = 30;
+  
+  /** The number of messages sent under this key. */
+  private int my_messagecount;
+  
+  /** The key for the listed messageindex. */
+  private final byte[] my_key;
+
   /** im = 28 · ROLL+SEQ (mod 240). */
   private long my_messageindex;
-  
+
   /**
-   * Sets the message index using the initial master key. Section 2.5.1
-   * 
-   * @param the_masterkey The master key material
-   * @param the_sessionid the session identifier
+   * Sets up a sending session.
+   * @param the_masterkey of the key agreement
+   * @param the_sessionid of this session
    */
-  private void initMessageIndex(final byte[] the_masterkey, final byte[] the_sessionid) {
-    // Initialize rollover counter
-    // Ascii for "InitialIndex"
-    final byte[] label =
-        {0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x49, 0x6e, 0x64, 0x65, 0x78};
-    // session identifier||0
-    final byte[] context = new byte[the_sessionid.length + 1];
-    System.arraycopy(the_sessionid, 0, context, 0, the_sessionid.length);
-    context[the_sessionid.length] = 0x00; // Set the last byte to 0
-
-    // i0 = KDF(Kmaster , “InitialIndex”, session identhe_sessionidtifier||0,
-    // 40)
-    final byte[] i0 = keyDerivationFunction(the_masterkey, label, context, MSGINDXBITS);
-
-    // The rollover counter is assigned the 32 left most bits of im
-    // and the sequence number is assigned the following 8 bits
-    // such that 2^8 · ROLL + SEQ = i0
-    my_rollovercounter = getUnsignedInt(i0, 0);
-    my_sequencenum = i0[4];
-    // TODO: my_keywindow.putFirstKey(the_key, the_index)
+  public SendingSession(final byte[] the_masterkey, final byte[] the_sessionid) {
+    super(the_sessionid);
+    my_messageindex = getInitMessageIndex(the_masterkey, the_sessionid);
+    my_key = computeMessageKey(the_masterkey, my_messageindex);
+    my_messagecount = 0;
   }
-  
-  public long getNextMessageIndex() {
-    return my_rollovercounter << 8 + my_sequencenum;
+
+  /**
+   * Advance session key by executing the KDF function Update the rollover
+   * counter if necessary.
+   * @throws RekeyException when it is time to refresh the session with a new master key.
+   */
+  public void advanceIndex() throws RekeyException {
+    my_messageindex = mod40(my_messageindex + 1);
+    my_messagecount++;
+    final byte[] nextkey = computeMessageKey(my_key, my_messageindex);
+    System.arraycopy(nextkey, 0, my_key, 0, MSGKEYBYTES);
+    System.arraycopy(EMPTYKEY, 0, nextkey, 0, MSGKEYBYTES);
+    
+    if (my_messagecount > my_rekeyfrequency) {
+      throw new RekeyException();
+    }
+  }
+
+  /** @return the message index. */
+  public long getMessageIndex() {
+    return my_messageindex;
+  }
+
+  /** @return the sequence number part of the message index. */
+  public byte getSequenceNumber() {
+    return (byte) (my_messageindex & 0xff);
+  }
+
+  /** @return the key for the current message index. */
+  public byte[] getKey() {
+    return my_key;
   }
 
 }
