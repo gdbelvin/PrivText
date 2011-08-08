@@ -22,4 +22,11 @@ public class JavaTests {
 		System.out.println("ud: " + ud.array().toString());
 		assertTrue(ud.array().length == 0);
 	}
+	
+	@Test
+	public void testModulus() {
+		int a = -1;
+		
+		assertEquals(Integer.MAX_VALUE -1, a % Integer.MAX_VALUE);
+	}
 }
