@@ -12,9 +12,17 @@ public class RecievingSession extends Session {
   /** The last valid sequence number received. */
   private byte my_sl;
 
-  public RecievingSession(byte[] the_sessionid) {
+  /**
+   * Initializes the receiving session.
+   * @param the_sessionid of the session
+   * @param the_masterkey either responder to initiator or visa versa
+   */
+  public RecievingSession(final byte[] the_sessionid, final byte[] the_masterkey) {
     super(the_sessionid);
-    // TODO Auto-generated constructor stub
+    final long firstindex = getInitMessageIndex(the_masterkey, the_sessionid);
+    final byte[] firstkey = computeMessageKey(the_masterkey, firstindex);
+    my_keywindow.putFirstKey(firstkey, firstindex);
+    System.arraycopy(EMPTYKEY, 0, firstkey, 0, MSGKEYBYTES);
   }
 
   /**

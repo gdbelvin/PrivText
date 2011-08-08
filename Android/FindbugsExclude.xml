@@ -9,4 +9,7 @@
 <Match>
         <Class name="~.*?EJS.*"/>       
 </Match>
+<Match>
+        <Class name="R"/>
+</Match>
 

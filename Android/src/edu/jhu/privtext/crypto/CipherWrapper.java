@@ -77,25 +77,25 @@ public final class CipherWrapper {
    * Decrypts a message.
    * @param the_cipher The Authenticated Encryption Scheme to use
    * @param the_key They key for the mac
-   * @param the_message the message to verify.
+   * @param the_usrdata the message to verify.
    * @param the_nonce the message index
    * @return the plaintext
    */
   public static byte[] decrypt(final AEADBlockCipher the_cipher, final byte[] the_key,
-                               final UserDataPart the_message, final byte[] the_nonce) {
+                               final UserDataPart the_usrdata, final byte[] the_nonce) {
     final KeyParameter keyparam = new KeyParameter(the_key);
-    final byte[] associated_text = the_message.getUserDataHeader();
+    final byte[] associated_text = the_usrdata.getUserDataHeader();
     final CCMParameters params =
-        new CCMParameters(keyparam, the_message.getMacBits(), the_nonce, associated_text);
+        new CCMParameters(keyparam, the_usrdata.getMacBits(), the_nonce, associated_text);
 
     the_cipher.init(false, params);
-    final int minSize = the_cipher.getOutputSize(the_message.getEncryptedPayload().length);
+    final int minSize = the_cipher.getOutputSize(the_usrdata.getEncryptedPayload().length);
     final byte[] plaintext = new byte[minSize];
 
     try {
       final int len =
-          the_cipher.processBytes(the_message.getEncryptedPayload(), 0,
-                                  the_message.getEncryptedPayload().length, plaintext, 0);
+          the_cipher.processBytes(the_usrdata.getEncryptedPayload(), 0,
+                                  the_usrdata.getEncryptedPayload().length, plaintext, 0);
       the_cipher.doFinal(plaintext, len);
       return plaintext;
     } catch (final InvalidCipherTextException e) {

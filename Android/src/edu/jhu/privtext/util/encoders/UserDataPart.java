@@ -69,6 +69,8 @@ public class UserDataPart {
   private final int my_macbytes;
   /** The maximum size of the encrypted data payload - excluding the mac. */
   private final byte my_maxencryptedbytes;
+  /** the maximum size of the authenticated and encrypted payload. */
+  private final byte my_maxpayloadbytes; 
 
   /** The user data header. */
   private byte[] my_userdataheader = new byte[UDH_SIZE];
@@ -90,6 +92,7 @@ public class UserDataPart {
   public UserDataPart(final int the_macsize) {
     assert the_macsize >= 2 && the_macsize <= (MAX_PDU_SIZE - SEQ_SIZE);
     my_maxencryptedbytes = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE + the_macsize));
+    my_maxpayloadbytes = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE));
 
     my_macbytes = the_macsize;
     my_sequencenum = 0;
@@ -107,6 +110,7 @@ public class UserDataPart {
 
     my_macbytes = the_macsize;
     my_maxencryptedbytes = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE + the_macsize));
+    my_maxpayloadbytes = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE));
     
     parse(the_userdata);
   }
@@ -115,26 +119,24 @@ public class UserDataPart {
    * Create a custom UserDataPart with the default MAC size.
    * 
    * @param the_seq Sequence number
-   * @param the_ciphertext Ciphertext
-   * @param the_mac message authentication code
+   * @param the_ciphertext Authenticated Ciphertext
    */
-  public UserDataPart(final byte the_seq, final byte[] the_ciphertext, 
-                      final byte[] the_mac) {
-    this(the_seq, the_ciphertext, the_mac, DefaultMAC_size);
+  public UserDataPart(final byte the_seq, final byte[] the_ciphertext) {
+    this(the_seq, the_ciphertext, DefaultMAC_size);
   }
 
   /**
    * Create a completely custom UserDataPart.
    * 
    * @param the_seq sequence number
-   * @param the_ciphertext ciphertext
-   * @param the_mac message authentication code
+   * @param the_ciphertext authenticated ciphertext
    * @param the_macsize custom message authentication code size in bytes
    */
-  public UserDataPart(final byte the_seq, final byte[] the_ciphertext, final byte[] the_mac,
+  public UserDataPart(final byte the_seq, final byte[] the_ciphertext,
                       final int the_macsize) {
     assert the_macsize >= 2 && the_macsize <= (MAX_PDU_SIZE - SEQ_SIZE);
     my_maxencryptedbytes = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE + the_macsize));
+    my_maxpayloadbytes = (byte) (MAX_PDU_SIZE - (UDH_SIZE + SEQ_SIZE));
 
     my_macbytes = the_macsize;
     setSequenceNumber(the_seq);

@@ -107,7 +107,7 @@ public final class SessionManager {
       return null;
     }
   }
-
+  
   /**
    * Reports whether the specified session is in need of a new key. Covers new
    * sessions, and sessions that have old keys.
@@ -129,6 +129,39 @@ public final class SessionManager {
       return ses.needsReKey();
     }
     return false;
+  }
+
+  /**
+   * Establishes or updates a session pair. 
+   * @param the_initnum The phone number of the initiator.
+   * @param the_respnum The phone number of the responder
+   * @param the_initport application port number
+   * @param the_respport application port number.
+   * @param the_i2rkey Initiator to responder key
+   * @param the_r2ikey Responder to initiator key
+   * @param is_initiator Are we the initiator or the responder?
+   */
+  public void newSession(final String the_initnum, final String the_respnum,
+                         final short the_initport, final short the_respport,
+                         final byte[] the_i2rkey, final byte[] the_r2ikey,
+                         final boolean is_initiator) {
+    final byte[] i2rid = 
+      computeSessionID(the_initnum, the_initport, the_respnum, the_respport);
+    final byte[] r2iid =
+      computeSessionID(the_respnum, the_respport, the_initnum, the_initport);
+    final SendingSession sendses;
+    final RecievingSession recses;
+    if (is_initiator) {
+      sendses = new SendingSession(i2rid, the_i2rkey);
+      recses = new RecievingSession(r2iid, the_r2ikey);
+      my_sessions.put(i2rid, sendses);
+      my_sessions.put(r2iid, recses);
+    } else {
+      recses = new RecievingSession(i2rid, the_i2rkey);
+      sendses = new SendingSession(r2iid, the_r2ikey);
+      my_sessions.put(i2rid, recses);
+      my_sessions.put(r2iid, sendses);
+    }
   }
 
   /**
@@ -202,10 +235,11 @@ public final class SessionManager {
    * @param the_srcport of this protocol
    * @param the_dstport of this protocol
    * @return the plaintext if a valid message was received. null otherwise.
+   * @throws RekeyException when a rekey is needed.
    */
   public byte[] processOutgoingSMS(final String the_srcnum, final String the_dstnum,
                                    final short the_srcport, final short the_dstport,
-                                   final byte[] the_message) {
+                                   final byte[] the_message) throws RekeyException {
     // 1. Determine the session identifier
     final byte[] sessionID =
         computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
@@ -229,20 +263,14 @@ public final class SessionManager {
                                 ses.getIndexBytes(indx));
       ud.setEncryptedPayload(aeciphertext);
 
-      try {
-        // 4. Advance session key by executing the KDF function
-        // 5. Update the rollover counter if necessary.
-        ses.advanceIndex();
-      } catch (final RekeyException e) {
-        // TODO: launch new key agreement to re-establish the session.
-      }
+      // 4. Advance session key by executing the KDF function
+      // 5. Update the rollover counter if necessary.
+      ses.advanceIndex();
       return plaintext;
-
     } else {
       // No session has been established for these endpoints.
       // Trigger a KAPS negotiation to set it up.
-      // TODO: throw new NoEstablishedSessionException();
-      return null;
+      throw new RekeyException();
     }
   }
 }
