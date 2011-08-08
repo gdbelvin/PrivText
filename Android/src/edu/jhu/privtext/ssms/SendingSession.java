@@ -43,15 +43,20 @@ public class SendingSession extends Session {
    * @throws RekeyException when it is time to refresh the session with a new master key.
    */
   public void advanceIndex() throws RekeyException {
+    if (my_messagecount > my_rekeyfrequency) {
+      throw new RekeyException();
+    }
+    
     my_messageindex = mod40(my_messageindex + 1);
     my_messagecount++;
     final byte[] nextkey = computeMessageKey(my_key, my_messageindex);
     System.arraycopy(nextkey, 0, my_key, 0, MSGKEYBYTES);
     System.arraycopy(EMPTYKEY, 0, nextkey, 0, MSGKEYBYTES);
-    
-    if (my_messagecount > my_rekeyfrequency) {
-      throw new RekeyException();
-    }
+  }
+  
+  /** @return the status of the age of the key */
+  public boolean needsReKey() {
+    return my_messagecount >= my_rekeyfrequency;
   }
 
   /** @return the message index. */

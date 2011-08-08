@@ -71,8 +71,8 @@ public final class SessionManager {
    * H(src number||0x3A||src port|| 0x00 ||dest number||0x3A||dest port).
    * 
    * @param the_srcnum Source Phone Number
-   * @param the_srcport Source application port 
-   * @param the_dstnum Destination Phone Number 
+   * @param the_srcport Source application port
+   * @param the_dstnum Destination Phone Number
    * @param the_dstport Destination application port
    * @return the session id
    */
@@ -109,6 +109,29 @@ public final class SessionManager {
   }
 
   /**
+   * Reports whether the specified session is in need of a new key. Covers new
+   * sessions, and sessions that have old keys.
+   * @param the_srcnum This phone
+   * @param the_dstnum That phone
+   * @param the_srcport application port number
+   * @param the_dstport application port number
+   * @return whether to trigger KAPS agreement
+   */
+  public boolean needsKey(final String the_srcnum, final String the_dstnum,
+                          final short the_srcport, final short the_dstport) {
+
+    final byte[] sessionid =
+        computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
+    if (!(my_sessions.containsKey(sessionid))) {
+      return true;
+    } else if (my_sessions.get(sessionid) instanceof SendingSession) {
+      final SendingSession ses = (SendingSession) my_sessions.get(sessionid);
+      return ses.needsReKey();
+    }
+    return false;
+  }
+
+  /**
    * Examines message to see if it is part of an active session. If so, the
    * plaintext of the message is returned. Section 2.8.3
    * 
@@ -121,7 +144,7 @@ public final class SessionManager {
    */
   public byte[] processIncomingSMS(final String the_srcnum, final String the_dstnum,
                                    final byte[] the_userdata)
-    throws InvalidCipherTextException, ReplayAttackException {
+      throws InvalidCipherTextException, ReplayAttackException {
     // 1 Determine the session identifier based on source address and port
     // number
     final UserDataHeader udh = new UserDataHeader(the_userdata);
@@ -148,8 +171,8 @@ public final class SessionManager {
         if (CipherWrapper.verifyMac(ses.getAECipher(), ses.getKey(indx), ud, indxbytes)) {
           // 6. Decrypt the encrypted portion of the message.
           final byte[] plaintext =
-              SSMS_PTPayload.parse(CipherWrapper.decrypt(ses.getAECipher(), ses.getKey(indx), ud,
-                                                    indxbytes));
+              SSMS_PTPayload.parse(CipherWrapper.decrypt(ses.getAECipher(), ses.getKey(indx),
+                                                         ud, indxbytes));
 
           // 5. Advance session key as needed
           // 6. Advance replay window by erasing keys.
@@ -203,7 +226,7 @@ public final class SessionManager {
 
       final byte[] aeciphertext =
           CipherWrapper.encrypt(ses.getAECipher(), ses.getKey(), ud, plaintext,
-                           ses.getIndexBytes(indx));
+                                ses.getIndexBytes(indx));
       ud.setEncryptedPayload(aeciphertext);
 
       try {
