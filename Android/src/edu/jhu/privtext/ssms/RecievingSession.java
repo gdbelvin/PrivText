@@ -17,7 +17,7 @@ public class RecievingSession extends Session {
    * @param the_sessionid of the session
    * @param the_masterkey either responder to initiator or visa versa
    */
-  public RecievingSession(final byte[] the_sessionid, final byte[] the_masterkey) {
+  public RecievingSession(final String the_sessionid, final byte[] the_masterkey) {
     super(the_sessionid);
     final long firstindex = getInitMessageIndex(the_masterkey, the_sessionid);
     final byte[] firstkey = computeMessageKey(the_masterkey, firstindex);

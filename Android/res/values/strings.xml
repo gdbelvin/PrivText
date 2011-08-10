@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PrivText</string>
-    <string name="listening_port">16000</string>
-    <string name="default_phoneno">2532059232</string>
+    <string name="listening_port">16474</string>
+    <string name="default_phoneno">5556</string>
     <string name="default_message">First Test, Oh yeah!!</string>
     <string name="txtPhoneNoText">Enter the phone number of recipient</string>
     <string name="btnSendText">Send Message</string>

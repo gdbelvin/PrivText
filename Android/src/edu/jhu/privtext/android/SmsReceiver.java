@@ -76,7 +76,7 @@ public class SmsReceiver extends BroadcastReceiver {
   private void procesessPDU(final Context the_context, final SmsMessage the_pdu) {
     final TelephonyManager tMgr =
         (TelephonyManager) the_context.getSystemService(Context.TELEPHONY_SERVICE);
-    final String srcNum = the_pdu.getDisplayOriginatingAddress();
+    final String srcNum = the_pdu.getOriginatingAddress();
     final String thisNum = tMgr.getLine1Number();
     final UserDataHeader udh = new UserDataHeader(the_pdu.getUserData());
     final short srcport = udh.getSrcPort();

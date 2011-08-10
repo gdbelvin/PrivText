@@ -30,6 +30,7 @@ import java.util.Map;
 import edu.jhu.bouncycastle.crypto.Digest;
 import edu.jhu.bouncycastle.crypto.InvalidCipherTextException;
 import edu.jhu.bouncycastle.crypto.digests.Skein;
+import edu.jhu.bouncycastle.util.encoders.Hex;
 import edu.jhu.privtext.crypto.CipherWrapper;
 import edu.jhu.privtext.util.encoders.SSMS_PTPayload;
 import edu.jhu.privtext.util.encoders.UserDataHeader;
@@ -50,7 +51,7 @@ public final class SessionManager {
   private Digest my_sesidhashfunc;
 
   /** The store for all active SSMS sessions, both incoming and outgoing. */
-  private Map<byte[], Session> my_sessions = new HashMap<byte[], Session>();
+  private Map<String, Session> my_sessions = new HashMap<String, Session>();
 
   /** Instantiates the session manager. */
   private SessionManager() {
@@ -76,7 +77,7 @@ public final class SessionManager {
    * @param the_dstport Destination application port
    * @return the session id
    */
-  private byte[] computeSessionID(final String the_srcnum, final short the_srcport,
+  private String computeSessionID(final String the_srcnum, final short the_srcport,
                                   final String the_dstnum, final short the_dstport) {
     try {
       final byte variableLengthSeparator = 0x00;
@@ -99,7 +100,7 @@ public final class SessionManager {
       my_sesidhashfunc.update(bb.array(), 0, capacity);
       my_sesidhashfunc.doFinal(id, 0);
 
-      return id;
+      return Hex.printHex(id);
 
     } catch (final UnsupportedEncodingException e) {
       // TODO Auto-generated catch block
@@ -120,15 +121,16 @@ public final class SessionManager {
   public boolean needsKey(final String the_srcnum, final String the_dstnum,
                           final short the_srcport, final short the_dstport) {
 
-    final byte[] sessionid =
+    final String sessionid =
         computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
     if (!(my_sessions.containsKey(sessionid))) {
       return true;
     } else if (my_sessions.get(sessionid) instanceof SendingSession) {
       final SendingSession ses = (SendingSession) my_sessions.get(sessionid);
       return ses.needsReKey();
+    } else {
+      return false;
     }
-    return false;
   }
 
   /**
@@ -145,9 +147,9 @@ public final class SessionManager {
                          final short the_initport, final short the_respport,
                          final byte[] the_i2rkey, final byte[] the_r2ikey,
                          final boolean is_initiator) {
-    final byte[] i2rid = 
+    final String i2rid = 
       computeSessionID(the_initnum, the_initport, the_respnum, the_respport);
-    final byte[] r2iid =
+    final String r2iid =
       computeSessionID(the_respnum, the_respport, the_initnum, the_initport);
     final SendingSession sendses;
     final RecievingSession recses;
@@ -181,7 +183,7 @@ public final class SessionManager {
     // 1 Determine the session identifier based on source address and port
     // number
     final UserDataHeader udh = new UserDataHeader(the_userdata);
-    final byte[] sessionID =
+    final String sessionID =
         computeSessionID(the_srcnum, udh.getSrcPort(), the_dstnum, udh.getDstPort());
 
     /*
@@ -241,7 +243,7 @@ public final class SessionManager {
                                    final short the_srcport, final short the_dstport,
                                    final byte[] the_message) throws RekeyException {
     // 1. Determine the session identifier
-    final byte[] sessionID =
+    final String sessionID =
         computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
 
     if (my_sessions.containsKey(sessionID)) {
@@ -266,7 +268,7 @@ public final class SessionManager {
       // 4. Advance session key by executing the KDF function
       // 5. Update the rollover counter if necessary.
       ses.advanceIndex();
-      return plaintext;
+      return ud.getUserData();
     } else {
       // No session has been established for these endpoints.
       // Trigger a KAPS negotiation to set it up.

@@ -60,12 +60,12 @@ public class SSMS_PTPayload {
    * @return A message of the format [bytes of plaintext][the plaintext][null
    *         padding]
    */
-  public static byte[] wrapPlainText(final byte theMaxPayloadSize, final byte[] thePlaintext) {
+  public static byte[] wrapPlainText(final int theMaxPayloadSize, final byte[] thePlaintext) {
     assert theMaxPayloadSize > 1 &&
            theMaxPayloadSize < SmsMessage.MAX_USER_DATA_SEPTETS_WITH_HEADER;
     assert (thePlaintext.length + 1) <= theMaxPayloadSize;
 
-    byte outputlen;
+    int outputlen;
     if (PlaintextPadding) {
       outputlen = theMaxPayloadSize;
 

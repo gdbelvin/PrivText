@@ -30,7 +30,7 @@ public class SendingSession extends Session {
    * @param the_masterkey of the key agreement
    * @param the_sessionid of this session
    */
-  public SendingSession(final byte[] the_sessionid, final byte[] the_masterkey) {
+  public SendingSession(final String the_sessionid, final byte[] the_masterkey) {
     super(the_sessionid);
     my_messageindex = getInitMessageIndex(the_masterkey, the_sessionid);
     my_key = computeMessageKey(the_masterkey, my_messageindex);

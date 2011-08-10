@@ -49,15 +49,11 @@ import java.nio.ByteBuffer;
  */
 public class UserDataHeader {
   /** The user data header length. */
-  private static final byte UHDL = 9;
+  public static final byte UHDL = 6;
   /** The data type in the first field. = application port */
   private static final byte IEI1 = 0x05;
   /** The length of the first field. = 16 bits*/
-  private static final byte IEI1LEN = 0x02;
-  /** The data type in the second field = application port addressing. */
-  private static final byte IEI2 = 0x05;
-  /** the length of the second field. = 16 bits. */
-  private static final byte IEI2LEN = 0x02;
+  private static final byte IEI1LEN = 0x04;
   /** The source port for the application port addressing. */
   private short my_appdstport;
   /** the destination port for in the application port addressing. */
@@ -87,28 +83,24 @@ public class UserDataHeader {
    * @return true if this is a user data header for 16 bit port addressing
    */
   private boolean parse(final byte[] the_pdu) {
-    assert the_pdu.length == UHDL;
+    assert the_pdu.length > UHDL;
     final ByteBuffer bb = ByteBuffer.wrap(the_pdu);
     boolean isvalid = true;
     isvalid = isvalid && (bb.get() == UHDL);
     isvalid = isvalid && (bb.get() == IEI1);
     isvalid = isvalid && (bb.get() == IEI1LEN);
     my_appdstport = bb.getShort();
-    isvalid = isvalid && (bb.get() == IEI2);
-    isvalid = isvalid && (bb.get() == IEI2LEN);
     my_appsrcport = bb.getShort();
     return isvalid;
   }
   
   /** @return Returns the UDH in byte format. */
   public byte[] getUDH() {
-    final ByteBuffer bb = ByteBuffer.allocate(UHDL);
+    final ByteBuffer bb = ByteBuffer.allocate(UHDL+1);
     bb.put(UHDL);
     bb.put(IEI1);
     bb.put(IEI1LEN);
     bb.putShort(my_appdstport);
-    bb.put(IEI2);
-    bb.put(IEI2LEN);
     bb.putShort(my_appsrcport);
     return bb.array();
   }

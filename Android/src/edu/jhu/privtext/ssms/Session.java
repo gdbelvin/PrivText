@@ -33,6 +33,7 @@ import edu.jhu.bouncycastle.crypto.macs.HMac;
 import edu.jhu.bouncycastle.crypto.modes.AEADBlockCipher;
 import edu.jhu.bouncycastle.crypto.modes.EAXBlockCipher;
 import edu.jhu.bouncycastle.crypto.params.KeyParameter;
+import edu.jhu.bouncycastle.util.encoders.Hex;
 
 /**
  * The algorithms and ciphers that SSMS uses are externally provided by the key
@@ -76,9 +77,9 @@ public class Session {
   private final short my_macbytes = 3;
 
   /** This session id. */
-  private final byte[] my_sessionid;
+  private final String my_sessionid;
 
-  public Session(final byte[] the_sessionid) {
+  public Session(final String the_sessionid) {
     my_sessionid = the_sessionid;
     my_portnumber = 0;
     my_kdfmac = new HMac(new Skein(512, 512));
@@ -93,15 +94,16 @@ public class Session {
    * @param the_sessionid the session identifier
    * @return the first message index
    */
-  protected long getInitMessageIndex(final byte[] the_masterkey, final byte[] the_sessionid) {
+  protected long getInitMessageIndex(final byte[] the_masterkey, final String the_sessionid) {
     // Initialize rollover counter
     // Ascii for "InitialIndex"
     final byte[] label =
     {0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x49, 0x6e, 0x64, 0x65, 0x78};
+    final byte[] sesid = Hex.decode(the_sessionid);
     // session identifier||0
-    final byte[] context = new byte[the_sessionid.length + 1];
-    System.arraycopy(the_sessionid, 0, context, 0, the_sessionid.length);
-    context[the_sessionid.length] = 0x00; // Set the last byte to 0
+    final byte[] context = new byte[sesid.length + 1];
+    System.arraycopy(sesid, 0, context, 0, sesid.length);
+    context[sesid.length] = 0x00; // Set the last byte to 0
 
     // i0 = KDF(Kmaster , “InitialIndex”, session identhe_sessionidtifier||0,
     // 40)
@@ -111,8 +113,8 @@ public class Session {
     // and the sequence number is assigned the following 8 bits
     // such that 2^8 · ROLL + SEQ = i0
     final long rollovercounter = getUnsignedInt(i0, 0);
-    final byte sequencenum = i0[4];
-    return rollovercounter << 8 + sequencenum;
+    final long sequencenum = i0[4];
+    return (rollovercounter << 8) | (sequencenum & 0xff);
   }
 
   /**
@@ -126,18 +128,24 @@ public class Session {
   protected byte[] computeMessageKey(final byte[] the_prevkey, final long the_msgindex) {
     // K0 = KDF(Kmaster , “MessageKey”, session identifier||i0 )
     final byte[] label = {0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x4b, 0x65, 0x79};
+    final byte[] sesid = Hex.decode(my_sessionid);
 
-    final ByteBuffer context = ByteBuffer.allocate(my_sessionid.length + MSGINDXBYTES);
-    context.put(my_sessionid);
+    final ByteBuffer context = ByteBuffer.allocate(sesid.length + MSGINDXBYTES);
+    context.put(sesid);
     context.put(putUnsignedInt(the_msgindex));
 
     return keyDerivationFunction(the_prevkey, label, context.array(), MSGKEYLEN);
   }
 
-  /** @return a long containing an unsigned int from the array */
+  /**  
+   * @param the_array to extract the integer from
+   * @param the_offset into the array to start from
+   * @return a long containing an unsigned int from the array */
   private long getUnsignedInt(final byte[] the_array, final int the_offset) {
-    return the_array[the_offset] & 0xff << 24 | the_array[the_offset + 1] & 0xff << 16 |
-           the_array[the_offset + 2] & 0xff << 8 | the_array[the_offset + 3] & 0xff;
+    return ((long)(the_array[the_offset] & 0xff) << 24) | 
+           ((the_array[the_offset + 1] & 0xff) << 16) |
+           ((the_array[the_offset + 2] & 0xff) << 8) | 
+           (the_array[the_offset + 3] & 0xff);
   }
 
   /** @return a 4 element array containing the unsigned bigendian int. */
@@ -150,13 +158,14 @@ public class Session {
     return out;
   }
 
-  /** @return the 40 bits of the message index. */
+  /** @param the_index to parse
+   *  @return the 40 bits of the message index. */
   public byte[] getIndexBytes(final long the_index) {
     final byte[] out = new byte[5];
-    out[0] = (byte) (the_index & (0xff >> 32));
-    out[1] = (byte) (the_index & (0xff >> 24));
-    out[2] = (byte) (the_index & (0xff >> 16));
-    out[3] = (byte) (the_index & (0xff >> 8));
+    out[0] = (byte) ((the_index >> 32) & 0xff);
+    out[1] = (byte) ((the_index >> 24) & 0xff);
+    out[2] = (byte) ((the_index >> 16) & 0xff);
+    out[3] = (byte) ((the_index >> 8 ) & 0xff);
     out[4] = (byte) (the_index & 0xff);
     return out;
   }
@@ -176,7 +185,7 @@ public class Session {
                                        final byte[] the_context, final int the_length) {
     assert the_length <= (my_kdfmac.getMacSize() * Byte.SIZE);
 
-    final int inputlen = 6 + the_label.length + the_context.length;
+    final int inputlen = 4+1+4 + the_label.length + the_context.length;
     final ByteBuffer bb = ByteBuffer.allocate(inputlen);
     bb.putInt(1);
     bb.put(the_label);

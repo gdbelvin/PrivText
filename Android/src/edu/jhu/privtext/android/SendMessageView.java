@@ -91,9 +91,10 @@ public class SendMessageView extends Activity {
         // Get this phone number
         my_privtext.sendSecureText(txtPhoneNumber.getText().toString(), txtMessage.getText()
             .toString());
-      }
+      } else {
       Toast.makeText(SendMessageView.this.getBaseContext(),
                      "Please enter both phone number and message.", 0).show();
+      }
     }
   }
 

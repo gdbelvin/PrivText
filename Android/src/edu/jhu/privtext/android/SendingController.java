@@ -88,7 +88,7 @@ public class SendingController extends SMSIO {
     final String dstnum = the_phonenum;
     final short dstport = getAppPort();
     final byte[] message = GZEncode.encodeString(the_message);
-    if (!my_sessionmgr.needsKey(srcnum, dstnum, srcport, dstport)) {
+    if (my_sessionmgr.needsKey(srcnum, dstnum, srcport, dstport)) {
       // TODO: Trigger KAPS Negotiation
       //Temporary keys
       final byte[] i2rkey = Hex.decode("4fc417d3152f5c824ee50bdec4a57ac7" + 
@@ -105,7 +105,8 @@ public class SendingController extends SMSIO {
 
     try {
       final byte[] pdu = my_sessionmgr.processOutgoingSMS(srcnum, dstnum, srcport, dstport, message);
-      sendPDU(the_phonenum, dstport, pdu);
+      byte[] test = {0x06, 0x05, 0x02, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00};
+      sendPDU(the_phonenum, dstport, test);
     } catch (final RekeyException e) {
       // TODO: Trigger KAPS Negotiation
     }
