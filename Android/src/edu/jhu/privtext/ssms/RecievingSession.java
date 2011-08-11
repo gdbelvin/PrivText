@@ -20,6 +20,8 @@ public class RecievingSession extends Session {
   public RecievingSession(final String the_sessionid, final byte[] the_masterkey) {
     super(the_sessionid);
     final long firstindex = getInitMessageIndex(the_masterkey, the_sessionid);
+    my_rollovercounter = firstindex >> 8;
+    my_sl = (byte) (firstindex & 0xff);
     final byte[] firstkey = computeMessageKey(the_masterkey, firstindex);
     my_keywindow.putFirstKey(firstkey, firstindex);
     System.arraycopy(EMPTYKEY, 0, firstkey, 0, MSGKEYBYTES);
@@ -89,7 +91,7 @@ public class RecievingSession extends Session {
         v = my_rollovercounter;
       }
     }
-    return the_sequencenum + (v << 8);
+    return (v << 8) + (long)the_sequencenum;
   }
 
   /**
@@ -100,7 +102,8 @@ public class RecievingSession extends Session {
   public boolean hasKey(final long the_messageindex) {
     final boolean havekey = my_keywindow.hasKey(the_messageindex);
     final boolean couldhavekey =
-        (the_messageindex - my_keywindow.getHeadIndex()) < REPLAYWINDOW;
+      (the_messageindex - my_keywindow.getHeadIndex()) < REPLAYWINDOW &&
+      (the_messageindex - my_keywindow.getHeadIndex()) > 0;
 
     return havekey || couldhavekey;
   }

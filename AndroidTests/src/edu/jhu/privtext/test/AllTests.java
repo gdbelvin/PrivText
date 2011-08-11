@@ -10,7 +10,7 @@ import edu.jhu.privtext.util.encoders.test.GSM0338Test;
 @Suite.SuiteClasses({ 
 	EncodingTest.class, 
 	GSM0338Test.class, 
-	GZEngineTest.class,
+	CipherWrapTest.class,
 	SendTextTest.class
 	})
 public class AllTests { }

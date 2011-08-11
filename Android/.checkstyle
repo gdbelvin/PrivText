@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<fileset-config file-format-version="1.2.0" simple-config="false" sync-formatter="false">
+  <local-check-config name="bc-checks" location="checkstyle/bc-checks.xml" type="project" description="">
+    <additional-data name="protect-config-file" value="false"/>
+  </local-check-config>
+  <local-check-config name="privtext-checks" location="checkstyle/privtext-checks.xml" type="project" description="">
+    <additional-data name="protect-config-file" value="false"/>
+  </local-check-config>
+  <fileset name="Privtext" enabled="true" check-config-name="privtext-checks" local="true">
+    <file-match-pattern match-pattern="." include-pattern="false"/>
+    <file-match-pattern match-pattern="src/edu/jhu/privtext/.*.java" include-pattern="true"/>
+  </fileset>
+  <filter name="FilesInSync" enabled="true"/>
+</fileset-config>

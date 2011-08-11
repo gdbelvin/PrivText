@@ -16,7 +16,7 @@ import edu.jhu.privtext.crypto.CipherWrapper;
 import edu.jhu.privtext.crypto.GZEncode;
 import edu.jhu.privtext.util.encoders.UserDataPart;
 
-public class GZEngineTest {
+public class CipherWrapTest {
 	private final byte[] my_key = Hex
 			.decode("15B3CA14A92A2F7F2B827A49B901ED76");
 	private final AEADBlockCipher my_cipher = new EAXBlockCipher(

@@ -2,8 +2,14 @@ PrivText is a secure textmessaging library
 Authored by Gary Belvin and Phil Zimmermann
 
 Folders
-	lib - the library source code
-	doc - refrence documentation
-	Android - A android implementation
-	AndroidTests - Unit tests for android
-	J2ME - a basic phone implementation
+	Android - Lateset code and android implementation
+	AndroidTests - Unit tests
+	J2ME - an old version ported to J2ME for basic phones. 
+
+
+TODO: 
+    The API needs a reliable way of determining the exact phone number the sender sent their message to.  Sender could send a message with our without the area code. This src number gets cryptographically tied into the key. SMS does not provide the destination address in the SMS-Deliver message.  The Android API does not have a reliable way of discovering one's own phone number.
+
+
+
+

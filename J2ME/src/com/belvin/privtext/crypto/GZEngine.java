@@ -26,6 +26,7 @@ import com.belvin.java.security.SecureRandom;
  * @author urbanus
  *
  */
+
 public class GZEngine {
 
     protected static final int MAC_SIZE = (48 / 8);	  //32 bits min.

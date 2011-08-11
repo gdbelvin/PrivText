@@ -100,7 +100,7 @@ public final class SessionManager {
       my_sesidhashfunc.update(bb.array(), 0, capacity);
       my_sesidhashfunc.doFinal(id, 0);
 
-      return Hex.printHex(id);
+      return Hex.toHexString(id);
 
     } catch (final UnsupportedEncodingException e) {
       // TODO Auto-generated catch block
@@ -173,18 +173,20 @@ public final class SessionManager {
    * @param the_userdata The User Data portion of the SMS
    * @param the_srcnum The sender's phone number
    * @param the_dstnum This device's phone number
+   * @param the_srcport The source port number
+   * @param the_dstport The destination port number
    * @return the plaintext if a valid message was received. null otherwise.
    * @throws InvalidCipherTextException when an invalid MAC is received.
    * @throws ReplayAttackException when a late or duplicate message is received.
    */
   public byte[] processIncomingSMS(final String the_srcnum, final String the_dstnum,
-                                   final byte[] the_userdata)
-      throws InvalidCipherTextException, ReplayAttackException {
+                                   final short the_srcport, final short the_dstport,
+                                   final byte[] the_userdata, final UserDataHeader the_udh)
+    throws InvalidCipherTextException, ReplayAttackException {
     // 1 Determine the session identifier based on source address and port
     // number
-    final UserDataHeader udh = new UserDataHeader(the_userdata);
     final String sessionID =
-        computeSessionID(the_srcnum, udh.getSrcPort(), the_dstnum, udh.getDstPort());
+        computeSessionID(the_srcnum, the_srcport, the_dstnum, the_dstport);
 
     /*
      * When receiving an incoming message, an end point uses the session
@@ -195,7 +197,7 @@ public final class SessionManager {
     if (my_sessions.containsKey(sessionID)) {
       // 2 Determine the index of the message
       final RecievingSession ses = (RecievingSession) my_sessions.get(sessionID);
-      final UserDataPart ud = new UserDataPart(the_userdata, ses.getMacSize());
+      final UserDataPart ud = new UserDataPart(the_userdata, the_udh, ses.getMacSize());
       final long indx = ses.estimateMessageIndex(ud.getSequenceNumber());
 
       // Check if the message has been replayed.

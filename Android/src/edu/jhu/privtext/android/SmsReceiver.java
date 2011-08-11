@@ -69,6 +69,23 @@ public class SmsReceiver extends BroadcastReceiver {
   }
 
   /**
+   * Assuming a User Data Header with dst and src ports, extracts the UDH.
+   * @param the_pdu the work with
+   * @return a UserDataHeader object
+   */
+  private UserDataHeader extractUDH(final SmsMessage the_pdu) {
+    final int udh_len = UserDataHeader.UHDL + 1;
+    final byte[] udh = new byte[udh_len];
+
+    final int pdu_len = the_pdu.getPdu().length;
+    final int ud_len = the_pdu.getUserData().length; // without the user data header
+    final int startaddr = pdu_len - (ud_len + udh_len);
+
+    System.arraycopy(the_pdu.getPdu(), startaddr, udh, 0, udh_len);
+    return new UserDataHeader(udh);
+  }
+
+  /**
    * Sends the message on its way through the privtext subsystem.
    * @param the_context used for extracting the phone number of this device
    * @param the_pdu the message to be processed.
@@ -78,29 +95,33 @@ public class SmsReceiver extends BroadcastReceiver {
         (TelephonyManager) the_context.getSystemService(Context.TELEPHONY_SERVICE);
     final String srcNum = the_pdu.getOriginatingAddress();
     final String thisNum = tMgr.getLine1Number();
-    final UserDataHeader udh = new UserDataHeader(the_pdu.getUserData());
+
+    final UserDataHeader udh = extractUDH(the_pdu);
     final short srcport = udh.getSrcPort();
     final short dstport = udh.getDstPort();
 
     if (my_sessionmgr.needsKey(srcNum, thisNum, srcport, dstport)) {
-      //Ignore. This message is not part of a valid session. 
-      //For testing purposes, we create a session for the message.
-      
-      //Temporary keys
-      final byte[] i2rkey = Hex.decode("4fc417d3152f5c824ee50bdec4a57ac7" + 
-                                       "6e51f186eec43526030157bd385887b4" +
-                                       "f949fe3f6c9f3b9fe9865f2cb029e5bc" + 
-                                       "42f92553d8102c4969e73ba759a74914");
-      final byte[] r2ikey = Hex.decode("96bf676939ff7ca372e4c15d9ea72aa8" + 
-                                       "ee57daca1c38fecf93979fb4be84439b" +
-                                       "059066a1d48e12395a871ea5a2fcb3d8" + 
-                                       "4f7a8aaec34f27913f87e340fc87d6a1");
+      // Ignore. This message is not part of a valid session.
+      // For testing purposes, we create a session for the message.
+
+      // Temporary keys until the KAPS layer gets implemented.
+      final byte[] i2rkey =
+          Hex.decode("4fc417d3152f5c824ee50bdec4a57ac7" + 
+                     "6e51f186eec43526030157bd385887b4" + 
+                     "f949fe3f6c9f3b9fe9865f2cb029e5bc" + 
+                     "42f92553d8102c4969e73ba759a74914");
+      final byte[] r2ikey =
+          Hex.decode("96bf676939ff7ca372e4c15d9ea72aa8" + 
+                     "ee57daca1c38fecf93979fb4be84439b" + 
+                     "059066a1d48e12395a871ea5a2fcb3d8" + 
+                     "4f7a8aaec34f27913f87e340fc87d6a1");
 
       my_sessionmgr.newSession(srcNum, thisNum, srcport, dstport, i2rkey, r2ikey, false);
-    } //else{ 
+    } // else{
     try {
       final byte[] plaintext =
-          my_sessionmgr.processIncomingSMS(srcNum, thisNum, the_pdu.getUserData());
+          my_sessionmgr.processIncomingSMS(srcNum, thisNum, srcport, dstport,
+                                           the_pdu.getUserData(), udh);
       final String message = GZEncode.decodeString(plaintext);
       // TODO: show message to user
       Toast.makeText(the_context, message, Toast.LENGTH_SHORT).show();
@@ -111,7 +132,7 @@ public class SmsReceiver extends BroadcastReceiver {
       // TODO Warn user
       e.printStackTrace();
     }
-  //}
+    // }
   }
 
   /** Test method to display PDU contents. */

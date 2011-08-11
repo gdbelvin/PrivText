@@ -84,7 +84,7 @@ public class SendingController extends SMSIO {
         (TelephonyManager) my_context.getSystemService(Context.TELEPHONY_SERVICE);
 
     final String srcnum = tMgr.getLine1Number();
-    final short srcport = getAppPort();
+    final short srcport = (short) 0; //Android doesn't support setting the src port
     final String dstnum = the_phonenum;
     final short dstport = getAppPort();
     final byte[] message = GZEncode.encodeString(the_message);
@@ -104,9 +104,9 @@ public class SendingController extends SMSIO {
     }
 
     try {
-      final byte[] pdu = my_sessionmgr.processOutgoingSMS(srcnum, dstnum, srcport, dstport, message);
-      byte[] test = {0x06, 0x05, 0x02, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00};
-      sendPDU(the_phonenum, dstport, test);
+      final byte[] pdu = my_sessionmgr.processOutgoingSMS(
+                         srcnum, dstnum, srcport, dstport, message);
+      sendPDU(the_phonenum, dstport, pdu);
     } catch (final RekeyException e) {
       // TODO: Trigger KAPS Negotiation
     }

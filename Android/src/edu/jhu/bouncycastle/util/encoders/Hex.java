@@ -118,13 +118,16 @@ public class Hex {
 		return encoder.decode(data, out);
 	}
 
-	public static String printHex(byte[] theData) {
-		byte[] hex = Hex.encode(theData);
-		StringBuffer sb = new StringBuffer();
-		for (int i = 0; i < hex.length; i++) {
-			char c = (char) hex[i];
-			sb.append(c);
-		}
-		return sb.toString();
-	}
+	public static String toHexString(byte[] bytes) {
+    char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+    char[] hexChars = new char[bytes.length * 2];
+    int v;
+    for ( int j = 0; j < bytes.length; j++ ) {
+        v = bytes[j] & 0xFF;
+        hexChars[j*2] = hexArray[v/16];
+        hexChars[j*2 + 1] = hexArray[v%16];
+    }
+    return new String(hexChars);
+}
+
 }

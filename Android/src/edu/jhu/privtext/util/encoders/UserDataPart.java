@@ -33,10 +33,6 @@ import java.nio.ByteBuffer;
  * <pre>
    7 6 5 4 3 2 1 0 
    +-+-+-+-+-+-+-+
-0  |  User Data  |
-.. |  Header     |
-8  |             |
-   +-+-+-+-+-+-+-+
 9  |   SEQ       |
    +-+-+-+-+-+-+-+<-+
 10 |  Data Len   |  |
@@ -73,7 +69,7 @@ public class UserDataPart {
   private final int my_maxpayloadbytes; 
 
   /** The user data header. */
-  private byte[] my_userdataheader = new byte[UDH_SIZE];
+  private UserDataHeader my_userdataheader;
   /** The Sequence Number. */
   private byte my_sequencenum;
   /** The Authenticated Encryption payload. */
@@ -96,6 +92,7 @@ public class UserDataPart {
 
     my_macbytes = the_macsize;
     my_sequencenum = 0;
+    my_userdataheader = new UserDataHeader((short)0, (short)0);
     my_aepayload = new byte[my_maxpayloadbytes];
   }
 
@@ -105,8 +102,9 @@ public class UserDataPart {
    * @param the_userdata of the message to be parsed
    * @param the_macsize of the message to be parsed
    */
-  public UserDataPart(final byte[] the_userdata, final int the_macsize) {
+  public UserDataPart(final byte[] the_userdata, final UserDataHeader the_udh, final int the_macsize) {
     this(the_macsize);
+    my_userdataheader = the_udh;
     parse(the_userdata);
   }
 
@@ -136,14 +134,14 @@ public class UserDataPart {
 
   /** Extracts the appropriate fields from the payload. */
   private void parse(final byte[] the_payload) {
-    my_userdataheader = new byte[UDH_SIZE];
+    
     my_sequencenum = 0;
-    final int ctextlen = the_payload.length - UDH_SIZE - SEQ_SIZE;
+    final int ctextlen = the_payload.length - SEQ_SIZE;
     my_aepayload = new byte[ctextlen];
 
-    System.arraycopy(the_payload, 0, my_userdataheader, 0, UDH_SIZE);
-    my_sequencenum = the_payload[UDH_SIZE];
-    System.arraycopy(the_payload, UDH_SIZE + SEQ_SIZE, my_aepayload, 0, ctextlen);
+    
+    my_sequencenum = the_payload[0];
+    System.arraycopy(the_payload, SEQ_SIZE, my_aepayload, 0, ctextlen);
   }
 
   /** @return everything past the User Data Header */
@@ -161,11 +159,11 @@ public class UserDataPart {
   }
 
   public byte[] getUserDataHeader() {
-    return my_userdataheader;
+    return my_userdataheader.getUDH();
   }
 
   public void setUserDataHeader(final UserDataHeader myUserDataHeader) {
-    this.my_userdataheader = myUserDataHeader.getUDH();
+    this.my_userdataheader = myUserDataHeader;
   }
 
   /** @return the sequence number of the message. */
